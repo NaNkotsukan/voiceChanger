@@ -42,26 +42,26 @@ class dataset:
 
             np.savez("D:/voice/data.npz",*self.data)
         else:
-            self.data = tuple(np.load("D:/voice/data.npz")[y] for y in np.load("D:/voice/data.npz"))
-            # with open('D:/voice/data.pickle', mode='rb') as f:
-            #     self.data = pickle.load(f)
-            with open('D:/voice/dataLen.pickle', mode='rb') as f:
+            # self.data = tuple(np.load("D:/voice/data.npz")[y] for y in np.load("D:/voice/data.npz"))
+            with open('D:/voice_/data.pickle', mode='rb') as f:
+                self.data = pickle.load(f)
+            with open('D:/voice_/dataLen.pickle', mode='rb') as f:
                 self.dataLen = pickle.load(f)
 
         self.dataNum = len(self.data)
-        self.dataSize = (66550,65536,65536,65536,65536,65536,65536,65536)
+        self.dataSize = (33798,32768,33798,32768,32768,32768,32768,32768)
 
         g = self.encode(self.read("test/Garagara_.wav"))
         s = self.encode(self.read("test/minase.wav"))
         self.testData = (g,s)
 
-    def reset(self, num=1_000_000):
+    def reset(self, num=1_000_000, N=2):
         self.nowIndex=0
-        self.index=np.hstack(tuple(np.random.permutation(self.dataNum).astype(dtype=np.int8)[:self.dataNum//3*3] for i in range(num))).reshape(self.dataNum//3*num,3).T
+        self.index=np.hstack(tuple(np.random.permutation(self.dataNum).astype(dtype=np.int8)[:self.dataNum//N*N] for i in range(num))).reshape(self.dataNum//N*num,N).T
         return self.index.shape[1]
 
     def next(self,batchSize=16):
-        r = tuple(self.dataCall(i,j).reshape(batchSize, 1, j) for i,j in zip(self.index[[0,0,0,1,1,1,2,2],self.nowIndex:self.nowIndex+batchSize],self.dataSize))
+        r = tuple(self.dataCall(i,j).reshape(batchSize, 1, j).astype(xp.int16) for i,j in zip(self.index[[0,0,1,1,1,1,1,1],self.nowIndex:self.nowIndex+batchSize],self.dataSize))
         self.nowIndex+=batchSize
         return r
 
@@ -77,6 +77,7 @@ class dataset:
 
     def save(self, sound, name):
         # AudioSegment(sound.tobytes(),sample_width=1,frame_rate=44100,channels=1).export(f"testGen/denxChan{name}.mp3", format="mp3")
+        # print(self.decode(sound).shape)
         self.write(self.decode(sound), name)
 
     def read(self, file_name):
@@ -92,14 +93,14 @@ class dataset:
         write_wave.close()
 
     def encode(self, x):
-        y=(x/2**16).astype(np.float32)
-        # y=((np.sign(x)*np.log1p(np.abs(x/32768*255))*128/np.log(256))+128).astype(np.uint8)
+        # y=(x/2**16).astype(np.float32)
+        y=((np.sign(x)*np.log1p(np.abs(x/32768*255))*128/np.log(256))+128).astype(np.uint8)
         return y
 
     def decode(self, y):
-        # y=y.astype(np.int8)-128
-        # z=((np.sign(y)*255**np.abs(y/128))*128).astype(np.int16)
-        z=(y*2**16).astype(np.int16)
+        y=(y-128).astype(np.int8)
+        z=((np.sign(y)*255**np.abs(y/128))*128).astype(np.int16)
+        # z=(y*2**16).astype(np.int16)
         return z
 
 

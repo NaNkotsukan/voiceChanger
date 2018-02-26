@@ -25,7 +25,7 @@ class Train:
         #     self.save(i)
         self.setLR()
         self.time=time.time()
-        self.training(batchsize = 3)
+        # self.training(batchsize = 3)
         # n=1250
         # load_npz(f"param/com/com{n}.npz",self.compressor)
         # load_npz(f"param/gen/gen{n}.npz",self.generator)
@@ -50,7 +50,7 @@ class Train:
     def setLR(self, lr=0.003):
         self.gen_opt = optimizers.Adam(alpha=lr)
         self.gen_opt.setup(self.generator)
-        self.dis_opt = optimizers.SGD()
+        self.dis_opt = optimizers.Adam(alpha=lr)
         self.dis_opt.setup(self.discriminator)
     
     def save(self, i):
@@ -69,7 +69,7 @@ class Train:
         with open(f"param/dis/dis{i}.pickle", mode='rb') as f:
             self.discriminator = pickle.load(f)
 
-    def training(self, batchsize = 3):
+    def training(self, batchsize = 1):
         for x in range(100):
             N = self.data.reset()
             for i in range(N // batchsize):
@@ -82,25 +82,29 @@ class Train:
                         # save_npz(f"param/gen/gen{i}.npz",self.generator)
                         # save_npz(f"param/dis/dis{i}.npz",self.discriminator)
                         a,b,c=self.data.test()
-                        res=self.generator(a,b,c).data.get().reshape(-1)
+                        # print(a.shape)
+                        # print(b.shape)
+                        # print(c.shape)
+                        res=F.argmax(self.generator(a.astype(xp.int16),b.astype(xp.int16),c.astype(xp.int16)),-2).data.get().reshape(-1)
                         # print(f"res:{res.shape}")
                         self.data.save(res, i)
 
-    def batch(self, batchsize = 3):
-        A0, a0, a1, b0, b1, b2, C0, c0 = self.data.next(batchSize = batchsize)
+    def batch(self, batchsize = 2):
+        A0, a0, B0, b0, b1, b2, b3, b4= self.data.next(batchSize = batchsize)
         _ = lambda x:x.astype(xp.float32)/255
-        B_gen = self.generator(A0, a0, b0)
-        A_gen = self.generator(B_gen, b1, a1)
-        F_dis = self.discriminator(B_gen, b2)
-        T_dis = self.discriminator(C0, c0)
-        print(B_gen.data[0])
-        print(A_gen.data[0])
-        print(F_dis.data)
-        print(T_dis.data)
-        L_gen = F.mean_squared_error(A_gen, A0[:,:,:A_gen.shape[-1]-A0.shape[-1]])
-        L_gen_ = F.softmax_cross_entropy(F_dis, xp.zeros(batchsize, dtype=np.int32))
-        gen_loss=(L_gen.data, L_gen_.data)
-        L_gen += L_gen_
+        A_gen = self.generator(A0, a0, b0)
+        B_gen = self.generator(B0, b3, b4)
+        F_dis = self.discriminator(F.argmax(A_gen, -2).reshape(batchsize, 1, -1), b1)
+        T_dis = self.discriminator(B0, b2)
+        # print(B_gen.data[0])
+        # print(A_gen.data[0])
+        # print(F_dis.data)
+        # print(B_gen.shape)
+        # print( B0[:,:,:B_gen.shape[-1]-B0.shape[-1]].shape)
+        L_gen0 = F.softmax_cross_entropy(B_gen, B0[:,:,:B_gen.shape[-1]-B0.shape[-1]].reshape(batchsize,-1))
+        L_gen1 = F.softmax_cross_entropy(F_dis, xp.zeros(batchsize, dtype=np.int32))
+        gen_loss=(L_gen0.data, L_gen1.data)
+        L_gen = L_gen0 + L_gen1
         L_dis = F.softmax_cross_entropy(F_dis, xp.ones(batchsize, dtype=np.int32))
         L_dis += F.softmax_cross_entropy(T_dis, xp.zeros(batchsize, dtype=np.int32))
 
@@ -119,4 +123,4 @@ class Train:
 
 if __name__ == '__main__':
     train = Train()
-    train.training()
+    train.training(batchsize = 3)
