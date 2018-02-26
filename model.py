@@ -2,23 +2,23 @@ from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L
 from chainer.initializers import HeNormal
-# import chainer.Variable as V
 
 
 class ResBlock1(Chain):
     def __init__(self, in_channels, out_channels, z_channels, dilate):
         super(ResBlock1, self).__init__()
         with self.init_scope():
-            self.convT = L.DilatedConvolution2D(in_channels, out_channels, ksize=(1, 2), dilate=(0, dilate))
-            self.convS = L.DilatedConvolution2D(in_channels, out_channels, ksize=(1, 2), dilate=(0, dilate))
-            self.conv = L.Convolution2D(out_channels, out_channels, 1)
+            self.convT = L.ConvolutionND(1, in_channels, out_channels, ksize=2, stride=2)
+            self.convS = L.ConvolutionND(1, in_channels, out_channels, ksize=2, stride=2)
+            self.conv = L.ConvolutionND(1, out_channels, out_channels, 1)
             self.out_channels = out_channels
             self.dilate = dilate
         
     def __call__(self, x):
         h = F.tanh(self.convT(x)) * F.sigmoid(self.convS(x))
         h = self.conv(h)
-        return h
+        x=h+F.max_pooling_nd(x,2)
+        return h, x
 
 class Compressor(Chain):
     def __init__(self):
@@ -26,30 +26,24 @@ class Compressor(Chain):
         with self.init_scope():
             self.resBlocks =[]
             self.embedid = L.EmbedID(256, 32)
-            for i in range(9):
+            for i in range(7):
                 x=ResBlock1(32, 32, 8, 2**(i+1)-1)
                 x.to_gpu()
                 self.resBlocks.append(x)
             self.l0 = L.Linear(16,8)
-            self.conv0 = L.ConvolutionND(1, 32, 32, 2)
+            self.conv0 = L.ConvolutionND(1, 32, 32, 2, stride=2)
             self.conv1 = L.ConvolutionND(1, 32, 32, 1)
             self.conv2 = L.ConvolutionND(1, 32, 8, 1)
 
     def __call__(self, x):
-        
-        # x = x.reshape(x.shape[0], x.shape[1], 1, x.shape[2])
-        # print(self.embedid(x).shape)
+        x=x[:,:,:32768]
         h = F.transpose(self.embedid(x),axes=(0,1,3,2)).reshape(x.shape[0],32,-1)
-
-        h = F.reshape(self.conv0(h), (x.shape[0], 32, 1, -1))
-        t = self.resBlocks[0](h)
-        residual = t + h[:,:,:,:-1]
+        h = self.conv0(h)
+        h, residual = self.resBlocks[0](h)
         for c in self.resBlocks[1:]:
-            t = c(residual)
-            n=h.shape[-1]-t.shape[-1]
-            h = t + h[:,:,:,:-n]
-            residual = t + residual[:,:,:,:-c.dilate]
-        h = F.reshape(h, (x.shape[0], 32, -1))
+            t, residual = c(residual)
+            h = t + F.max_pooling_nd(h,2)
+
         h = F.relu(self.conv1(h))
         h = self.conv2(h)
         h = F.average(h,axis=2)
@@ -87,15 +81,14 @@ class Generator(Chain):
                 x=ResBlock(32, 32, 8, 2**(i+1)-1)
                 x.to_gpu()
                 self.resBlocks.append(x)
-            self.l0 = L.Linear(16,8)
+            self.l0 = L.Linear(8,8)
             self.conv0 = L.ConvolutionND(1, 32, 32, 2)
             self.conv1 = L.ConvolutionND(1, 32, 64, 1)
             self.conv2 = L.ConvolutionND(1, 64, 256, 1)
             self.embedid = L.EmbedID(256, 32)
 
     def __call__(self, x, i, o):
-        # x = x.reshape(x.shape[0], x.shape[1], 1, x.shape[2])
-        z = self.convBlock(i)-self.convBlock(o)
+        z = F.sigmoid(self.l0(self.convBlock(i)-self.convBlock(o)))
         h = F.transpose(self.embedid(x),axes=(0,1,3,2)).reshape(x.shape[0],32,-1)
         h = F.reshape(self.conv0(h), (x.shape[0], 32, 1, -1))
         t = self.resBlocks[0](h, z)

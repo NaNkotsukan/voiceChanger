@@ -8,7 +8,6 @@ import cupy as xp
 
 class dataset:
     def __init__(self, dataLoad=False, sampling=22050):
-        # # self.write(np.zeros(100000),"mazai.wav")
         self.sampling=sampling
         if dataLoad:
             dirs = os.listdir("voices/")
@@ -68,16 +67,11 @@ class dataset:
     def dataCall(self, t, size):
         return xp.asarray(np.vstack(tuple(self.data[i][j:j+size] for i,j  in zip(t, tuple(np.random.randint(self.dataLen[k]-size) for k in t)))))
 
-    # def data(self, t, size):
-    #     x=np.random.randint(self.dataLen[t])
-    #     self.data[x:x+size]
 
     def test(self, size = 65536):
         return (xp.asarray(self.testData[0]).reshape(1,1,-1), xp.asarray(self.testData[0][6*self.sampling:6*self.sampling+size]).reshape(1,1,-1), xp.asarray(self.testData[1][9*self.sampling:9*self.sampling+size]).reshape(1,1,-1))
 
     def save(self, sound, name):
-        # AudioSegment(sound.tobytes(),sample_width=1,frame_rate=44100,channels=1).export(f"testGen/denxChan{name}.mp3", format="mp3")
-        # print(self.decode(sound).shape)
         self.write(self.decode(sound), name)
 
     def read(self, file_name):
@@ -93,14 +87,12 @@ class dataset:
         write_wave.close()
 
     def encode(self, x):
-        # y=(x/2**16).astype(np.float32)
         y=((np.sign(x)*np.log1p(np.abs(x/32768*255))*128/np.log(256))+128).astype(np.uint8)
         return y
 
     def decode(self, y):
         y=(y-128).astype(np.int8)
         z=((np.sign(y)*255**np.abs(y/128))*128).astype(np.int16)
-        # z=(y*2**16).astype(np.int16)
         return z
 
 
