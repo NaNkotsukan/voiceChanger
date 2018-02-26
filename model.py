@@ -36,9 +36,6 @@ class Compressor(Chain):
             self.conv2 = L.ConvolutionND(1, 32, 8, 1)
 
     def __call__(self, x):
-        
-        # x = x.reshape(x.shape[0], x.shape[1], 1, x.shape[2])
-        # print(self.embedid(x).shape)
         h = F.transpose(self.embedid(x),axes=(0,1,3,2)).reshape(x.shape[0],32,-1)
 
         h = F.reshape(self.conv0(h), (x.shape[0], 32, 1, -1))
@@ -94,7 +91,6 @@ class Generator(Chain):
             self.embedid = L.EmbedID(256, 32)
 
     def __call__(self, x, i, o):
-        # x = x.reshape(x.shape[0], x.shape[1], 1, x.shape[2])
         z = self.convBlock(i)-self.convBlock(o)
         h = F.transpose(self.embedid(x),axes=(0,1,3,2)).reshape(x.shape[0],32,-1)
         h = F.reshape(self.conv0(h), (x.shape[0], 32, 1, -1))
