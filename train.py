@@ -82,8 +82,8 @@ class Train:
         B_gen = self.generator(B0, b3, b4)
         F_dis = self.discriminator(F.argmax(A_gen, -2).reshape(batchsize, 1, -1), b1)
         T_dis = self.discriminator(B0, b2)
-
-        L_gen0 = F.softmax_cross_entropy(B_gen, B0[:,:,:B_gen.shape[-1]-B0.shape[-1]].reshape(batchsize,-1))
+        receptionSize = B_gen.shape[-1]-B0.shape[-1]
+        L_gen0 = F.softmax_cross_entropy(B_gen, B0[:,:,:].reshape(batchsize,-1))
         L_gen1 = F.softmax_cross_entropy(F_dis, xp.zeros(batchsize, dtype=np.int32))
         gen_loss=(L_gen0.data, L_gen1.data)
         L_gen = L_gen0 + L_gen1
