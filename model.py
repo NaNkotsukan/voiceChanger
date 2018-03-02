@@ -11,9 +11,9 @@ class GAU(Chain):
         super(GAU, self).__init__()
         with self.init_scope():
             self.dilate = dilate
-            if False:
-                self.convT = L.Convolution2D(in_channels, out_channels // 8, ksize=(1, 3), pad=(0, 1))
-                self.convS = L.Convolution2D(in_channels, out_channels // 8, ksize=(1, 3), pad=(0, 1))
+            if not dilate:
+                self.convT = L.Convolution2D(in_channels, out_channels, ksize=(1, 3), pad=(0, 1))
+                self.convS = L.Convolution2D(in_channels, out_channels, ksize=(1, 3), pad=(0, 1))
             else:
                 self.convT = L.DilatedConvolution2D(in_channels, out_channels, ksize=(1, 3), dilate=(0, dilate), pad=(0, dilate))
                 self.convS = L.DilatedConvolution2D(in_channels, out_channels, ksize=(1, 3), dilate=(0, dilate), pad=(0, dilate))
@@ -50,7 +50,6 @@ class Compressor(Chain):
     def __init__(self):
         super(Compressor, self).__init__()
         with self.init_scope():
-            # self.resBlocks =[]
             self.embedid = L.EmbedID(256, 32)
             for i in range(4):
                 self.add_link(f"resBlock{i}", ResBlock1(32, 32))
@@ -65,7 +64,6 @@ class Compressor(Chain):
         h = F.transpose(h, axes=(0,1,3,2)).reshape(x.shape[0],1,-1)
         
         h = F.reshape(F.relu(self.conv0(h)), (x.shape[0], 32, 1, -1))[:,:,:,:32768]
-        # print(h[:,:,:,:32768].shape)
         for i in range(4):
             _, h=self[f"resBlock{i}"](h)
             h = F.max_pooling_2d(h, ksize=(1, 2))
