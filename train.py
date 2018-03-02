@@ -73,7 +73,7 @@ class Train:
                 if not i%10:
                     print(F"{i//10} time:{int(time.time()-self.time)} G_Loss:{res[0][0]} {res[0][1]} D_Loss:{res[1]}")
                     if not i%100:
-                        self.save(i)
+                        # self.save(i)
                         # save_npz(f"param/com/com{i}.npz",self.compressor)
                         # save_npz(f"param/gen/gen{i}.npz",self.generator)
                         # save_npz(f"param/dis/dis{i}.npz",self.discriminator)
