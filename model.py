@@ -57,7 +57,7 @@ class Compressor(Chain):
             self.conv0 = L.ConvolutionND(1, 1, 64, 1)
             self.conv1 = L.ConvolutionND(1, 64, 64, 1)
             self.conv2 = L.ConvolutionND(1, 64, 8, 1)
-        self.w = xp.arange(256).astype(xp.float32).reshape(256,1)/255
+            self.w = xp.arange(256).astype(xp.float32).reshape(256,1)/255
 
     def __call__(self, x):
         h = F.embed_id(x, self.w)
@@ -100,7 +100,6 @@ class ResBlock(Chain):
         return h, residual
 
 
-
 class Generator(Chain):
     def __init__(self, compressor):
         super(Generator, self).__init__()
@@ -118,10 +117,12 @@ class Generator(Chain):
             self.l1 =L.Linear(16, 8)
             # self.embedid = L.EmbedID(256, 32)
             # self.conv0
+            self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
     def __call__(self, x, i, o):
         # z = self.convBlock(i)-self.convBlock(o)
-        z = F.concat((self.convBlock(i),self.convBlock(o)),axis=-1)
+        z = (self.executor.submit(self.convBlock,i),self.executor.submit(self.convBlock,o))
+        z = F.concat((z[0].result(), z[1].result()),axis=-1)
         z = F.relu(self.l0(z))
         z = F.relu(self.l1(z))
         # h = F.transpose(self.embedid(x),axes=(0,1,3,2)).reshape(x.shape[0],32,-1)
@@ -151,9 +152,12 @@ class Discriminator(Chain):
             self.l2=L.Linear(16, 16, initialW=HeNormal())
             self.l3=L.Linear(16, 16, initialW=HeNormal())
             self.l4=L.Linear(16, 2, initialW=HeNormal())
+            self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
     def __call__(self, x, c):
-        h = F.concat((self.convBlock(x),self.convBlock(c)),axis=-1)
+        h = (self.executor.submit(self.convBlock,x),self.executor.submit(self.convBlock,c))
+        h = F.concat((h[0].result(), h[1].result()),axis=-1)
+        # h = F.concat((self.convBlock(x),self.convBlock(c)),axis=-1)
         h = F.relu(self.l1(h))
         h = F.relu(self.l2(h))
         h = F.relu(self.l3(h))

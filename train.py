@@ -20,7 +20,7 @@ class Train:
         # self.load(1)
         self.setLR()
         self.time=time.time()
-        self.dataRate = xp.float32(1)
+        self.dataRate = xp.float32(0.4)
         # n=1250
         # load_npz(f"param/com/com{n}.npz",self.compressor)
         # load_npz(f"param/gen/gen{n}.npz",self.generator)
@@ -69,15 +69,16 @@ class Train:
             # d=F.argmax(self.generator(a.astype(xp.float32),b.astype(xp.int16),c.astype(xp.int16)),-2).data.get().reshape(-1)
             # print(d[25000:26000])
             # self.data.save(d, "_")
-            for i in range(N // batchsize):
+            self.batch(batchsize = 1)
+            for i in range(N // batchsize-1):
                 res = self.batch(batchsize = batchsize)
                 if not i%10:
-                    print(F"{i//10} time:{int(time.time()-self.time)} G_Loss:{res[0][0]} {res[0][1]} D_Loss:{res[1]} D_Acc:{res[2]}")
+                    print(F"{i//10} time:{int(time.time()-self.time)} G_Loss:{res[0][0]} {res[0][1]} D_Loss:{res[1][0]+res[1][1]} D_Acc:{res[2]}, {self.dataRate}")
                     if not i%100:
                         # self.save(i)
-                        # save_npz(f"param/com/com{i}.npz",self.compressor)
-                        # save_npz(f"param/gen/gen{i}.npz",self.generator)
-                        # save_npz(f"param/dis/dis{i}.npz",self.discriminator)
+                        save_npz(f"param/com/com{i}.npz",self.compressor)
+                        save_npz(f"param/gen/gen{i}.npz",self.generator)
+                        save_npz(f"param/dis/dis{i}.npz",self.discriminator)
                         a,b,c=self.data.test()
                         d=F.argmax(self.generator(a.astype(xp.float32),b.astype(xp.int16),c.astype(xp.int16)),-2).data.get().reshape(-1)
                         # print(d[25000:25100])
@@ -92,8 +93,8 @@ class Train:
         F_dis = self.discriminator(F.argmax(A_gen, -2).reshape(batchsize, 1, -1), b1.astype(xp.int16))
         T_dis = self.discriminator(B0.astype(xp.int16), b2.astype(xp.int16))
 
-        dis_acc = (F.argmax(F_dis,axis=1).data.sum(), F.argmax(T_dis,axis=1).data.sum())
-        self.dataRate = self.dataRate / xp.float32(0.9) if dis_acc[0]
+        dis_acc = (F.argmax(F_dis,axis=1).data.sum(), xp.int32(batchsize) - F.argmax(T_dis,axis=1).data.sum())
+        self.dataRate = self.dataRate if dis_acc[0] == dis_acc[1] else self.dataRate / xp.float32(0.98) if dis_acc[0] > dis_acc[1] else self.dataRate * xp.float32(0.98)
 
         receptionSize = B0.shape[-1] - B_gen.shape[-1]
         L_gen0 = F.softmax_cross_entropy(B_gen, B0[:,:,receptionSize:].reshape(batchsize,-1))
@@ -101,9 +102,10 @@ class Train:
         gen_loss=(L_gen0.data, L_gen1.data)
 
         L_gen = L_gen0 + L_gen1
-        L_dis = F.softmax_cross_entropy(F_dis, xp.ones(batchsize, dtype=np.int32))
-        L_dis += F.softmax_cross_entropy(T_dis, xp.zeros(batchsize, dtype=np.int32))
-
+        L_dis0 = F.softmax_cross_entropy(F_dis, xp.ones(batchsize, dtype=np.int32))
+        L_dis1 = F.softmax_cross_entropy(T_dis, xp.zeros(batchsize, dtype=np.int32))
+        dis_loss = (L_dis0.data.get(), L_dis1.data.get())
+        L_dis = L_dis0 * min(xp.float32(1), 1 / self.dataRate) + L_dis1 * min(xp.float32(1), self.dataRate)
         self.generator.cleargrads()
         L_gen.backward()
         self.gen_opt.update()
@@ -114,11 +116,11 @@ class Train:
 
         self.dis_opt.alpha*=0.999
         self.gen_opt.alpha*=0.999
-        return (gen_loss, L_dis.data, dis_acc)
+        return (gen_loss, dis_loss, dis_acc, self.dataRate)
     
     def garagara(self):
         pass
 
 if __name__ == '__main__':
     train = Train()
-    train.training(batchsize = 3)
+    train.training(batchsize = 5)
