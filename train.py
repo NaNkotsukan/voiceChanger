@@ -20,6 +20,7 @@ class Train:
         # self.load(1)
         self.setLR()
         self.time=time.time()
+        self.dataRate = xp.float32(1)
         # n=1250
         # load_npz(f"param/com/com{n}.npz",self.compressor)
         # load_npz(f"param/gen/gen{n}.npz",self.generator)
@@ -37,7 +38,7 @@ class Train:
         self.generator.to_gpu()
         self.discriminator.to_gpu()
 
-    def setLR(self, lr=0.00002):
+    def setLR(self, lr=0.0001):
         self.gen_opt = optimizers.Adam(alpha=lr)
         self.gen_opt.setup(self.generator)
         self.gen_opt.add_hook(optimizer.WeightDecay(0.0001))
@@ -71,7 +72,7 @@ class Train:
             for i in range(N // batchsize):
                 res = self.batch(batchsize = batchsize)
                 if not i%10:
-                    print(F"{i//10} time:{int(time.time()-self.time)} G_Loss:{res[0][0]} {res[0][1]} D_Loss:{res[1]}")
+                    print(F"{i//10} time:{int(time.time()-self.time)} G_Loss:{res[0][0]} {res[0][1]} D_Loss:{res[1]} D_Acc:{res[2]}")
                     if not i%100:
                         # self.save(i)
                         # save_npz(f"param/com/com{i}.npz",self.compressor)
@@ -90,10 +91,15 @@ class Train:
         B_gen = self.generator(_(B0), b3.astype(xp.int16), b4.astype(xp.int16))
         F_dis = self.discriminator(F.argmax(A_gen, -2).reshape(batchsize, 1, -1), b1.astype(xp.int16))
         T_dis = self.discriminator(B0.astype(xp.int16), b2.astype(xp.int16))
+
+        dis_acc = (F.argmax(F_dis,axis=1).data.sum(), F.argmax(T_dis,axis=1).data.sum())
+        self.dataRate = self.dataRate / xp.float32(0.9) if dis_acc[0]
+
         receptionSize = B0.shape[-1] - B_gen.shape[-1]
         L_gen0 = F.softmax_cross_entropy(B_gen, B0[:,:,receptionSize:].reshape(batchsize,-1))
         L_gen1 = F.softmax_cross_entropy(F_dis, xp.zeros(batchsize, dtype=np.int32))
         gen_loss=(L_gen0.data, L_gen1.data)
+
         L_gen = L_gen0 + L_gen1
         L_dis = F.softmax_cross_entropy(F_dis, xp.ones(batchsize, dtype=np.int32))
         L_dis += F.softmax_cross_entropy(T_dis, xp.zeros(batchsize, dtype=np.int32))
@@ -108,7 +114,7 @@ class Train:
 
         self.dis_opt.alpha*=0.999
         self.gen_opt.alpha*=0.999
-        return (gen_loss, L_dis.data)
+        return (gen_loss, L_dis.data, dis_acc)
     
     def garagara(self):
         pass

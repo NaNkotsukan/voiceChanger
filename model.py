@@ -51,23 +51,23 @@ class Compressor(Chain):
         super(Compressor, self).__init__()
         with self.init_scope():
             self.embedid = L.EmbedID(256, 32)
-            for i in range(4):
-                self.add_link(f"resBlock{i}", ResBlock1(32, 32))
+            for i in range(6):
+                self.add_link(f"resBlock{i}", ResBlock1(64, 64))
             self.l0 = L.Linear(16,8)
-            self.conv0 = L.ConvolutionND(1, 1, 32, 1)
-            self.conv1 = L.ConvolutionND(1, 32, 32, 1)
-            self.conv2 = L.ConvolutionND(1, 32, 8, 1)
+            self.conv0 = L.ConvolutionND(1, 1, 64, 1)
+            self.conv1 = L.ConvolutionND(1, 64, 64, 1)
+            self.conv2 = L.ConvolutionND(1, 64, 8, 1)
         self.w = xp.arange(256).astype(xp.float32).reshape(256,1)/255
 
     def __call__(self, x):
         h = F.embed_id(x, self.w)
         h = F.transpose(h, axes=(0,1,3,2)).reshape(x.shape[0],1,-1)
         
-        h = F.reshape(F.relu(self.conv0(h)), (x.shape[0], 32, 1, -1))[:,:,:,:32768]
-        for i in range(4):
+        h = F.reshape(F.relu(self.conv0(h)), (x.shape[0], 64, 1, -1))[:,:,:,:32768]
+        for i in range(6):
             _, h=self[f"resBlock{i}"](h)
-            h = F.max_pooling_2d(h, ksize=(1, 2))
-        h = F.reshape(h, (x.shape[0], 32, -1))
+            h = F.max_pooling_2d(h, ksize=(1, 4))
+        h = F.reshape(h, (x.shape[0], 64, -1))
         h = F.relu(self.conv1(h))
         h = self.conv2(h)
         h = F.average(h,axis=2)
@@ -111,15 +111,19 @@ class Generator(Chain):
                 x=ResBlock(32, 32, 8, 2**(i+1)-1)
                 x.to_gpu()
                 self.resBlocks.append(x)
-            self.l0 = L.Linear(16,8)
+            self.l0 = L.Linear(16,16)
             self.conv0 = L.ConvolutionND(1, 1, 32, 2)
             self.conv1 = L.ConvolutionND(1, 32, 64, 1)
             self.conv2 = L.ConvolutionND(1, 64, 256, 1)
+            self.l1 =L.Linear(16, 8)
             # self.embedid = L.EmbedID(256, 32)
             # self.conv0
 
     def __call__(self, x, i, o):
-        z = self.convBlock(i)-self.convBlock(o)
+        # z = self.convBlock(i)-self.convBlock(o)
+        z = F.concat((self.convBlock(i),self.convBlock(o)),axis=-1)
+        z = F.relu(self.l0(z))
+        z = F.relu(self.l1(z))
         # h = F.transpose(self.embedid(x),axes=(0,1,3,2)).reshape(x.shape[0],32,-1)
         h = F.reshape(self.conv0(x), (x.shape[0], 32, 1, -1))
         h, h_ = self.resBlocks[0](h, z)
@@ -143,14 +147,16 @@ class Discriminator(Chain):
         super(Discriminator, self).__init__()
         with self.init_scope():
             self.convBlock=compressor
-            self.l1=L.Linear(8, 8, initialW=HeNormal())
-            self.l2=L.Linear(8, 4, initialW=HeNormal())
-            self.l3=L.Linear(4, 2, initialW=HeNormal())
+            self.l1=L.Linear(16, 16, initialW=HeNormal())
+            self.l2=L.Linear(16, 16, initialW=HeNormal())
+            self.l3=L.Linear(16, 16, initialW=HeNormal())
+            self.l4=L.Linear(16, 2, initialW=HeNormal())
 
     def __call__(self, x, c):
-        h = self.convBlock(x)-self.convBlock(c)
+        h = F.concat((self.convBlock(x),self.convBlock(c)),axis=-1)
         h = F.relu(self.l1(h))
         h = F.relu(self.l2(h))
-        h = self.l3(h)
+        h = F.relu(self.l3(h))
+        h = self.l4(h)
         return h
 
