@@ -5,40 +5,39 @@ from chainer.initializers import HeNormal
 import cupy as xp
 import concurrent.futures
 
-# import chainer.Variable as V
-class GAU(Chain):
+class Swish(Chain):
     def __init__(self, in_channels, out_channels, dilate):
-        super(GAU, self).__init__()
+        super(Swish, self).__init__()
         with self.init_scope():
             self.dilate = dilate
             if not dilate:
-                self.convT = L.Convolution2D(in_channels, out_channels, ksize=(1, 3), pad=(0, 1))
-                self.convS = L.Convolution2D(in_channels, out_channels, ksize=(1, 3), pad=(0, 1))
+                self.conv = L.Convolution2D(in_channels, out_channels, ksize=(1, 3), pad=(0, 1))
             else:
-                self.convT = L.DilatedConvolution2D(in_channels, out_channels, ksize=(1, 3), dilate=(0, dilate), pad=(0, dilate))
-                self.convS = L.DilatedConvolution2D(in_channels, out_channels, ksize=(1, 3), dilate=(0, dilate), pad=(0, dilate))
+                self.conv = L.DilatedConvolution2D(in_channels, out_channels, ksize=(1, 3), dilate=(0, dilate), pad=(0, dilate))
     
     def __call__(self, x):
-        return F.tanh(self.convT(x)) * F.sigmoid(self.convS(x))
+        h = self.conv(x)
+        return h * F.sigmoid(h)
         
 
 class ResBlock1(Chain):
-    def __init__(self, in_channels, out_channels, resSize=8):
+    def __init__(self, in_channels, out_channels, resSize=8, executor=None):
         super(ResBlock1, self).__init__()
         with self.init_scope():
             for i in range(8):
-                self.add_link(f"gau{i}", GAU(in_channels, out_channels //8 , i))
+                self.add_link(f"swish{i}", Swish(in_channels, out_channels // 8 , i))
             self.conv = L.Convolution2D(out_channels, out_channels, 1)
             self.out_channels = out_channels
             # self.dilate = dilate
-            self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=8)
+            self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=8) if executor == None else executor
             self.resSize = resSize
         
     def __call__(self, x):
         task = []
         for i in range(8):
-            task.append(self.executor.submit(self[f"gau{i}"], x))
+            task.append(self.executor.submit(self[f"swish{i}"], x))
         h = [p.result() for p in task]
+
         h = F.concat(h, axis=1)
         h = self.conv(h)
         a, b, c, d = x.shape
@@ -50,24 +49,27 @@ class Compressor(Chain):
     def __init__(self):
         super(Compressor, self).__init__()
         with self.init_scope():
-            self.embedid = L.EmbedID(256, 32)
+            # self.embedid = L.EmbedID(256, 32)
+            self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=8)
             for i in range(6):
-                self.add_link(f"resBlock{i}", ResBlock1(64, 64))
+                self.add_link(f"resBlock{i}", ResBlock1(64, 64, executor=self.executor))
             self.l0 = L.Linear(16,8)
             self.conv0 = L.ConvolutionND(1, 1, 64, 1)
             self.conv1 = L.ConvolutionND(1, 64, 64, 1)
             self.conv2 = L.ConvolutionND(1, 64, 8, 1)
-            self.w = xp.arange(256).astype(xp.float32).reshape(256,1)/255
+            # self.w = xp.arange(256).astype(xp.float32).reshape(256,1)/255
 
     def __call__(self, x):
-        h = F.embed_id(x, self.w)
-        h = F.transpose(h, axes=(0,1,3,2)).reshape(x.shape[0],1,-1)
-        
+        # h = F.embed_id(x, self.w)
+        # h = F.transpose(h, axes=(0,1,3,2)).reshape(x.shape[0],1,-1)
+        h = x.reshape(x.shape[0],1,-1)
         h = F.reshape(F.relu(self.conv0(h)), (x.shape[0], 64, 1, -1))[:,:,:,:32768]
         for i in range(6):
             _, h=self[f"resBlock{i}"](h)
             h = F.max_pooling_2d(h, ksize=(1, 4))
+        # print(h.shape)
         h = F.reshape(h, (x.shape[0], 64, -1))
+        # print(h.shape)
         h = F.relu(self.conv1(h))
         h = self.conv2(h)
         h = F.average(h,axis=2)
@@ -78,20 +80,21 @@ class ResBlock(Chain):
     def __init__(self, in_channels, out_channels, z_channels, dilate, resSize=8):
         super(ResBlock, self).__init__()
         with self.init_scope():
-            self.convT = L.DilatedConvolution2D(in_channels, out_channels, ksize=(1, 2), dilate=(0, dilate))
-            self.convS = L.DilatedConvolution2D(in_channels, out_channels, ksize=(1, 2), dilate=(0, dilate))
-            self.conv = L.Convolution2D(out_channels, out_channels, 1)
-            self.linearT = L.Linear(z_channels, out_channels)
-            self.linearS = L.Linear(z_channels, out_channels)
+            self.conv = L.DilatedConvolution2D(in_channels, out_channels, ksize=(1, 2), dilate=(0, dilate))
+            # self.convS = L.DilatedConvolution2D(in_channels, out_channels, ksize=(1, 2), dilate=(0, dilate))
+            # self.conv = L.Convolution2D(out_channels, out_channels, 1)
+            self.linear = L.Linear(z_channels, out_channels)
+            # self.linearS = L.Linear(z_channels, out_channels)
             self.out_channels = out_channels
             self.dilate = dilate
             self.resSize = resSize
         
     def __call__(self, x, z):
-        zT = F.tile(F.reshape(self.linearT(z),(x.shape[0],self.out_channels,1,1)),(x.shape[3]-self.dilate))
-        zS = F.tile(F.reshape(self.linearS(z),(x.shape[0],self.out_channels,1,1)),(x.shape[3]-self.dilate))
-        h = F.tanh(self.convT(x) + zT) * F.sigmoid(self.convS(x) + zS)
-        h = self.conv(h)
+        z = F.tile(F.reshape(self.linear(z),(x.shape[0],self.out_channels,1,1)),(x.shape[3]-self.dilate))
+        # zS = F.tile(F.reshape(self.linearS(z),(x.shape[0],self.out_channels,1,1)),(x.shape[3]-self.dilate))
+        h = self.conv(x) + z
+        h = h * F.sigmoid(h)
+        # h = self.conv(h)
         a, b, c, d = x.shape
         # print(x[:self.resSize,:,:,self.dilate:].shape)
         # print(b - self.resSize)
@@ -105,40 +108,69 @@ class Generator(Chain):
         super(Generator, self).__init__()
         with self.init_scope():
             self.convBlock=compressor
-            self.resBlocks =[]
-            for i in range(12):
-                x=ResBlock(32, 32, 8, 2**(i+1)-1)
-                x.to_gpu()
-                self.resBlocks.append(x)
+            for i in range(11):
+                self.add_link(f"resBlock{i}", ResBlock(64, 64, 8, 2**(i+1)-1))
             self.l0 = L.Linear(16,16)
-            self.conv0 = L.ConvolutionND(1, 1, 32, 2)
-            self.conv1 = L.ConvolutionND(1, 32, 64, 1)
-            self.conv2 = L.ConvolutionND(1, 64, 256, 1)
+            self.conv0 = L.ConvolutionND(1, 1, 64, 2)
+            self.conv1 = L.ConvolutionND(1, 104, 64, 1)
+            self.conv2 = L.ConvolutionND(1, 64, 1, 1)
             self.l1 =L.Linear(16, 8)
             # self.embedid = L.EmbedID(256, 32)
             # self.conv0
             self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
-    def __call__(self, x, i, o):
+    def __call__(self, x, i, o, test=False):
+        dataLen = x.shape[-1]-4084 if test else 32768
         # z = self.convBlock(i)-self.convBlock(o)
         z = (self.executor.submit(self.convBlock,i),self.executor.submit(self.convBlock,o))
         z = F.concat((z[0].result(), z[1].result()),axis=-1)
         z = F.relu(self.l0(z))
         z = F.relu(self.l1(z))
         # h = F.transpose(self.embedid(x),axes=(0,1,3,2)).reshape(x.shape[0],32,-1)
-        h = F.reshape(self.conv0(x), (x.shape[0], 32, 1, -1))
-        h, h_ = self.resBlocks[0](h, z)
+        h_ = F.reshape(self.conv0(x), (x.shape[0], 64, 1, -1))
+        # _, h_ = self[f"resBlock0"](h, z)
+        h = []
         # residual = t + h[:,:,:,:-1]
-        for c in self.resBlocks[1:]:
-            t, h_ = c(h_, z)
-            # n=h.shape[-1]-t.shape[-1]
-            # print(n)
-            # print(c.dilate)
-            h = t + h[:,:,:,c.dilate:]
-            # residual = residual[:,:,:,:-c.dilate]
-            # residual += t
-        h = F.reshape(h, (x.shape[0], 32, -1))
-        h = F.relu(self.conv1(h))
+        for i in range(11):
+            t, h_ = self[f"resBlock{i}"](h_, z)
+            if i==10:
+                h.append(t)
+                break
+            h.append(t[:,-4:,:,-dataLen:])
+            # h = t + h[:,:,:,self[f"resBlock{i}"].dilate:]
+            # t.append(h[:,-:,-32768:])
+        h = F.concat(h)
+        # print(h.shape)
+        h = F.reshape(h, (x.shape[0], 104, -1))
+        h = self.conv1(h)
+        h = h * F.sigmoid(h)
+        h = self.conv2(h)
+        return h
+
+    def test(self, x, i, o):
+        # z = self.convBlock(i)-self.convBlock(o)
+        z = (self.executor.submit(self.convBlock,i),self.executor.submit(self.convBlock,o))
+        z = F.concat((z[0].result(), z[1].result()),axis=-1)
+        z = F.relu(self.l0(z))
+        z = F.relu(self.l1(z))
+        # h = F.transpose(self.embedid(x),axes=(0,1,3,2)).reshape(x.shape[0],32,-1)
+        h_ = F.reshape(self.conv0(x), (x.shape[0], 64, 1, -1))
+        # _, h_ = self[f"resBlock0"](h, z)
+        h = []
+        # residual = t + h[:,:,:,:-1]
+        for i in range(11):
+            t, h_ = self[f"resBlock{i}"](h_, z)
+            if i==10:
+                h.append(t)
+                break
+            h.append(t[:,-4:,:,-32768:])
+            # h = t + h[:,:,:,self[f"resBlock{i}"].dilate:]
+            # t.append(h[:,-:,-32768:])
+        h = F.concat(h)
+        # print(h.shape)
+        h = F.reshape(h, (x.shape[0], 104, -1))
+        h = self.conv1(h)
+        h = h * F.sigmoid(h)
         h = self.conv2(h)
         return h
 

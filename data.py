@@ -41,14 +41,14 @@ class dataset:
 
             np.savez("D:/voice/data.npz",*self.data)
         else:
-            # self.data = tuple(np.load("D:/voice/data.npz")[y] for y in np.load("D:/voice/data.npz"))
-            with open('D:/voice_/data.pickle', mode='rb') as f:
-                self.data = pickle.load(f)
-            with open('D:/voice_/dataLen.pickle', mode='rb') as f:
+            self.data = tuple(np.load("D:/voice__/data.npz")[y] for y in np.load("D:/voice__/data.npz"))
+            # with open('D:/voice_/data.pickle', mode='rb') as f:
+            #     self.data = pickle.load(f)
+            with open('D:/voice__/dataLen.pickle', mode='rb') as f:
                 self.dataLen = pickle.load(f)
 
         self.dataNum = len(self.data)
-        self.dataSize = (33798,32768,33798,32768,32768,32768,32768,32768)
+        self.dataSize = (36852,32768,36852,32768,32768,32768,32768,32768)
 
         g = self.encode(self.read("test/Garagara_.wav"))
         s = self.encode(self.read("test/minase.wav"))
@@ -60,7 +60,7 @@ class dataset:
         return self.index.shape[1]
 
     def next(self,batchSize=16):
-        r = tuple(self.dataCall(i,j).reshape(batchSize, 1, j).astype(xp.int16) for i,j in zip(self.index[[0,0,1,1,1,1,1,1],self.nowIndex:self.nowIndex+batchSize],self.dataSize))
+        r = tuple(self.dataCall(i,j).reshape(batchSize, 1, j) for i,j in zip(self.index[[0,0,1,1,1,1,1,1],self.nowIndex:self.nowIndex+batchSize],self.dataSize))
         self.nowIndex+=batchSize
         return r
 
@@ -90,12 +90,14 @@ class dataset:
         write_wave.close()
 
     def encode(self, x):
-        y=((np.sign(x)*np.log1p(np.abs(x/32768*255))*128/np.log(256))+128).astype(np.uint8)
+        y=(x/32768).astype(np.float32)
+        # y=((np.sign(x)*np.log1p(np.abs(x/32768*255))*128/np.log(256))+128).astype(np.uint8)
         return y
 
     def decode(self, y):
-        y=(y-128).astype(np.int8)
-        z=((np.sign(y)*255**np.abs(y/128))*128).astype(np.int16)
+        z=(y*2**16).reshape(-1).astype(np.int16)
+        # y=(y-128).astype(np.int8)
+        # z=((np.sign(y)*255**np.abs(y/128))*128).astype(np.int16)
         return z
 
 
