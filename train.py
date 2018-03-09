@@ -20,10 +20,10 @@ class Train:
         self.setLR()
         self.time=time.time()
         self.dataRate = xp.float32(0.8)
-        n=10
-        load_npz(f"param/com/com_{n}.npz",self.compressor)
-        load_npz(f"param/gen/gen_{n}.npz",self.generator)
-        load_npz(f"param/dis/dis_{n}.npz",self.discriminator)
+        # n=10
+        # load_npz(f"param/com/com_{n}.npz",self.compressor)
+        # load_npz(f"param/gen/gen_{n}.npz",self.generator)
+        # load_npz(f"param/dis/dis_{n}.npz",self.discriminator)
         self.training(batchsize = 4)
 
 
@@ -77,15 +77,16 @@ class Train:
                 # print(d[25000:25100])
                 res = self.batch(batchsize = batchsize)
                 if not i%10:
-                    print(F"{i} time:{int(time.time()-self.time)} G_Loss:{res[0][0]} {res[0][1]} D_Loss:{res[1][0]+res[1][1]} D_Acc:{res[2]}, {self.dataRate}")
+                    print(F"{i} time:{int(time.time()-self.time)} G_Loss:{res[0][0]} {res[0][1]} D_Loss:{res[1][0]+res[1][1]} D_Acc:{res[2]}")
                     save_npz(f"param/com/com_{i}.npz",self.compressor)
                     save_npz(f"param/gen/gen_{i}.npz",self.generator)
                     save_npz(f"param/dis/dis_{i}.npz",self.discriminator)
                     if not i%100:
                         a,b,c=self.data.test()
-                        d=self.generator(a[:,:,:220500],b,c,test=True).data.get().reshape(-1)
+                        d=self.generator(a[:,:,:110250],b,c,test=True).data.get().reshape(-1)
                         self.data.save(d, i)
-                        
+                        # del d
+
                     # print(res[-1][0])
                     # print(res[-1][1])
                         
