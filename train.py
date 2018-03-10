@@ -86,7 +86,7 @@ class Train:
                         d=self.generator(a[:,:,:110250],b,c,test=True).data.get().reshape(-1)
                         self.data.save(d, i)
                         # del d
-
+                        
                     # print(res[-1][0])
                     # print(res[-1][1])
                         
