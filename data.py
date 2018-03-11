@@ -48,7 +48,7 @@ class dataset:
                 self.dataLen = pickle.load(f)
 
         self.dataNum = len(self.data)
-        self.dataSize = (36852,32768,36852,32768,32768,32768,32768,32768)
+        self.dataSize = (113815,112047,112047,112047,112047,112047,112047,112047)
 
         g = self.encode(self.read("test/Garagara_.wav"))
         s = self.encode(self.read("test/minase.wav"))
@@ -71,7 +71,7 @@ class dataset:
     #     x=np.random.randint(self.dataLen[t])
     #     self.data[x:x+size]
 
-    def test(self, size = 65536):
+    def test(self, size = 112047):
         return (xp.asarray(self.testData[0]).reshape(1,1,-1), xp.asarray(self.testData[0][6*self.sampling:6*self.sampling+size]).reshape(1,1,-1), xp.asarray(self.testData[1][9*self.sampling:9*self.sampling+size]).reshape(1,1,-1))
 
     def save(self, sound, name):
