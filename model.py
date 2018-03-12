@@ -24,25 +24,26 @@ class ResBlock1(Chain):
     def __init__(self, in_channels, out_channels, resSize=8, executor=None):
         super(ResBlock1, self).__init__()
         with self.init_scope():
-            for i in range(8):
-                self.add_link(f"swish{i}", Swish(in_channels, out_channels // 8 , i))
-            self.conv = L.Convolution2D(out_channels, out_channels, 1)
+            self.conv0 = L.Convolution2D(out_channels, out_channels, ksize=3, pad=1)
+            self.conv1 = L.Convolution2D(out_channels, out_channels, ksize=3, pad=1)
+            self.bn0 = L.BatchNormalization(out_channels)
+            self.bn1 = L.BatchNormalization(out_channels)
             self.out_channels = out_channels
             # self.dilate = dilate
-            self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=8) if executor == None else executor
+            # self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=8) if executor == None else executor
             self.resSize = resSize
         
-    def __call__(self, x):
-        task = []
-        for i in range(8):
-            task.append(self.executor.submit(self[f"swish{i}"], x))
-        h = [p.result() for p in task]
-
-        h = F.concat(h, axis=1)
-        h = self.conv(h)
+    def __call__(self, x, test=False):
+        h = self.bn0(x)
+        h = F.relu(h)
+        h = self.conv0(h)
+        h = self.bn1(x)
+        h = F.relu(h)
+        if not test: h = F.dropout(h, 0.3)
+        h = self.conv1(h)
         a, b, c, d = x.shape
-        residual = h + F.concat((x[:,:self.resSize], xp.zeros((a, b - self.resSize, 1, d),dtype=xp.float32)),axis=1)
-        return h, residual
+        residual = h + F.concat((x[:,:self.resSize], xp.zeros((a, b - self.resSize, c, d),dtype=xp.float32)),axis=1)
+        return residual
 
 
 class Compressor(Chain):
@@ -53,53 +54,45 @@ class Compressor(Chain):
             # self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=8)
             # for i in range(6):
             #     self.add_link(f"resBlock{i}", ResBlock1(64, 64, executor=self.executor))
-            self.l0 = L.Linear(64,64)
+            self.l0 = L.Linear(256,64)
 
             self.conv0 = L.Convolution2D(2, 64, 3)
-            self.conv1 = L.Convolution2D(64, 64, 3)
-            self.conv2 = L.Convolution2D(64, 64, 3)
-            self.conv3 = L.Convolution2D(64, 64, 3)
-            self.conv4 = L.Convolution2D(64, 64, 3)
-            self.conv5 = L.Convolution2D(64, 64, 3)
-            self.conv6 = L.Convolution2D(64, 64, 3)
-            # self.conv7 = L.Convolution2D(64, 64, 3)
-            # self.conv8 = L.Convolution2D(64, 64, 3)
-            # self.conv9 = L.Convolution2D(64, 64, 3)
+            self.conv1 = L.Convolution2D(64, 128, 3)
+            self.conv2 = L.Convolution2D(128, 256, 3)
 
-            self.bn0 = L.BatchNormalization(64)
-            self.bn1 = L.BatchNormalization(64)
-            self.bn2 = L.BatchNormalization(64)
-            self.bn3 = L.BatchNormalization(64)
-            self.bn4 = L.BatchNormalization(64)
+            # for i in range(4):
+            self.add_link(f"resBlock0", ResBlock1(64, 64))
+            self.add_link(f"resBlock1", ResBlock1(64, 64))
+            self.add_link(f"resBlock2", ResBlock1(128, 128, 16))
+            self.add_link(f"resBlock3", ResBlock1(256, 256, 32))
+            self.add_link(f"resBlock4", ResBlock1(256, 256, 32))
+            self.add_link(f"resBlock5", ResBlock1(256, 256, 32))
 
             # self.conv1 = L.ConvolutionND(1, 64, 64, 1)
             # self.conv2 = L.ConvolutionND(1, 64, 8, 1)
             # self.w = xp.arange(256).astype(xp.float32).reshape(256,1)/255
 
-    def __call__(self, x):
+    def __call__(self, x, test=False):
         # h = F.embed_id(x, self.w)
         # h = F.transpose(h, axes=(0,1,3,2)).reshape(x.shape[0],1,-1)
 
-        h = self.bn0(self.conv0(x))
-        h = h * F.sigmoid(h)
+        h = self.conv0(x)
+        h = self["resBlock0"](h)
         h = F.max_pooling_2d(h, 2)
-
-        h = self.bn1(self.conv1(h))
-        h = h * F.sigmoid(h)
+        h = self["resBlock1"](h)
+        h = F.max_pooling_2d(h, 2)
+        h = F.relu(h)
+        h = self.conv1(h)
+        h = self["resBlock2"](h)
+        h = F.max_pooling_2d(h, 2)
+        h = F.relu(h)
         h = self.conv2(h)
-        h = h * F.sigmoid(h)
+        h = self["resBlock3"](h)
         h = F.max_pooling_2d(h, 2)
-
-        h = self.bn2(self.conv3(h))
-        h = h * F.sigmoid(h)
-        h = self.conv4(h)
-        h = h * F.sigmoid(h)
+        h = self["resBlock4"](h)
         h = F.max_pooling_2d(h, 2)
+        h = self["resBlock5"](h)
 
-        h = self.bn3(self.conv5(h))
-        h = h * F.sigmoid(h)
-        h = self.conv6(h)
-        h = h * F.sigmoid(h)
         # h = F.max_pooling_2d(h, 2)
 
         # h = self.conv7(h)
@@ -226,7 +219,7 @@ class Generator(Chain):
     def __call__(self, x, i, o, test=False):
         # dataLen = x.shape[-1]-4084 if test else 
         # z = self.convBlock(i)-self.convBlock(o)
-        z = (self.executor.submit(self.convBlock,i),self.executor.submit(self.convBlock,o))
+        z = (self.executor.submit(self.convBlock,*(i, test)),self.executor.submit(self.convBlock,*(o, test)))
         z = F.concat((z[0].result(), z[1].result()),axis=-1)
         # z = z * F.sigmoid(z)
         z = F.relu(self.l0(z))

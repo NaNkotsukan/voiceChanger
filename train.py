@@ -114,10 +114,11 @@ class Train:
                 res = self.batch(batchsize = batchsize)
                 if not i%10:
                     print(F"{i} time:{int(time.time()-self.time)} G_Loss:{res[0][0]} {res[0][1]} D_Loss:{res[1][0]+res[1][1]} D_Acc:{res[2]}")
-                    save_npz(f"param/com/com_{i}.npz",self.compressor)
-                    save_npz(f"param/gen/gen_{i}.npz",self.generator)
-                    save_npz(f"param/dis/dis_{i}.npz",self.discriminator)
                     if not i%100:
+                        # save_npz(f"param/com/com_{i}.npz",self.compressor)
+                        save_npz(f"param/gen/gen_{i}.npz",self.generator)
+                        save_npz(f"param/dis/dis_{i}.npz",self.discriminator)
+
                         a,b,c=self.data.test()
                         
                         # a=self.encode(a.reshape(1,1,-1)[:,:,:a.shape[-1]//442*442-221])
@@ -156,7 +157,7 @@ class Train:
         L_gen0 = F.mean_squared_error(B_gen, B0_[:,:,:,-442:])
         # L_gen0 = 0
         L_gen1 = F.softmax_cross_entropy(F_dis, xp.zeros(batchsize, dtype=np.int32))
-        gen_loss=(L_gen0, L_gen1.data)
+        gen_loss=(L_gen0.data, L_gen1.data)
 
         L_gen = L_gen0 + L_gen1
         L_dis0 = F.softmax_cross_entropy(F_dis, xp.ones(batchsize, dtype=np.int32))
