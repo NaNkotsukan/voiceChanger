@@ -48,7 +48,7 @@ class dataset:
                 self.dataLen = pickle.load(f)
 
         self.dataNum = len(self.data)
-        self.dataSize = (113815,112047,112047,112047,112047,112047,112047,112047)
+        self.dataSize = (99671,97903,99671,97903,97903,97903,97903,97903)
 
         g = self.encode(self.read("test/Garagara_.wav"))
         s = self.encode(self.read("test/minase.wav"))

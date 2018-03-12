@@ -138,6 +138,7 @@ class Train:
         # _ = lambda x:x/xp.float32(32768)
         B0_ = _(B0)
         A_gen = self.generator(_(A0), _(a0), _(b0))
+        # print(A_gen.shape)
         B_gen = self.generator(B0_, _(b3), _(b4))
 
         F_dis = self.discriminator(A_gen, _(b1))
@@ -151,9 +152,11 @@ class Train:
         # receptionSize = B0.shape[-1] - B_gen.shape[-1]
         # L_gen0 = F.softmax_cross_entropy(B_gen, B0[:,:,receptionSize:].reshape(batchsize,-1))
         # print(B_gen.shape)
-        L_gen0 = F.mean_squared_error(B_gen, B0_[:,:,:,-494:])
+        # print(B0_.shape)
+        L_gen0 = F.mean_squared_error(B_gen, B0_[:,:,:,-442:])
+        # L_gen0 = 0
         L_gen1 = F.softmax_cross_entropy(F_dis, xp.zeros(batchsize, dtype=np.int32))
-        gen_loss=(L_gen0.data, L_gen1.data)
+        gen_loss=(L_gen0, L_gen1.data)
 
         L_gen = L_gen0 + L_gen1
         L_dis0 = F.softmax_cross_entropy(F_dis, xp.ones(batchsize, dtype=np.int32))

@@ -53,7 +53,7 @@ class Compressor(Chain):
             # self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=8)
             # for i in range(6):
             #     self.add_link(f"resBlock{i}", ResBlock1(64, 64, executor=self.executor))
-            self.l0 = L.Linear(64,8)
+            self.l0 = L.Linear(64,64)
 
             self.conv0 = L.Convolution2D(2, 64, 3)
             self.conv1 = L.Convolution2D(64, 64, 3)
@@ -62,9 +62,9 @@ class Compressor(Chain):
             self.conv4 = L.Convolution2D(64, 64, 3)
             self.conv5 = L.Convolution2D(64, 64, 3)
             self.conv6 = L.Convolution2D(64, 64, 3)
-            self.conv7 = L.Convolution2D(64, 64, 3)
-            self.conv8 = L.Convolution2D(64, 64, 3)
-            self.conv9 = L.Convolution2D(64, 64, 3)
+            # self.conv7 = L.Convolution2D(64, 64, 3)
+            # self.conv8 = L.Convolution2D(64, 64, 3)
+            # self.conv9 = L.Convolution2D(64, 64, 3)
 
             self.bn0 = L.BatchNormalization(64)
             self.bn1 = L.BatchNormalization(64)
@@ -84,36 +84,36 @@ class Compressor(Chain):
         h = h * F.sigmoid(h)
         h = F.max_pooling_2d(h, 2)
 
-        h = self.conv1(h)
+        h = self.bn1(self.conv1(h))
         h = h * F.sigmoid(h)
-        h = self.bn1(self.conv2(h))
-        h = h * F.sigmoid(h)
-        h = F.max_pooling_2d(h, 2)
-
-        h = self.conv3(h)
-        h = h * F.sigmoid(h)
-        h = self.bn2(self.conv4(h))
+        h = self.conv2(h)
         h = h * F.sigmoid(h)
         h = F.max_pooling_2d(h, 2)
 
-        h = self.conv5(h)
+        h = self.bn2(self.conv3(h))
         h = h * F.sigmoid(h)
-        h = self.bn3(self.conv6(h))
-        h = h * F.sigmoid(h)
-        h = F.max_pooling_2d(h, 2)
-
-        h = self.conv7(h)
-        h = h * F.sigmoid(h)
-        h = self.bn4(self.conv8(h))
+        h = self.conv4(h)
         h = h * F.sigmoid(h)
         h = F.max_pooling_2d(h, 2)
 
-        h = self.conv9(h)
+        h = self.bn3(self.conv5(h))
         h = h * F.sigmoid(h)
+        h = self.conv6(h)
+        h = h * F.sigmoid(h)
+        # h = F.max_pooling_2d(h, 2)
+
+        # h = self.conv7(h)
+        # h = h * F.sigmoid(h)
+        # h = self.bn4(self.conv8(h))
+        # h = h * F.sigmoid(h)
+        # h = F.max_pooling_2d(h, 2)
+
+        # h = self.conv9(h)
+        # h = h * F.sigmoid(h)
         
-        h = self.bn2(self.conv4(h))
-        h = h * F.sigmoid(h)
-        h = F.max_pooling_2d(h, 2)
+        # h = self.bn2(self.conv4(h))
+        # h = h * F.sigmoid(h)
+        # h = F.max_pooling_2d(h, 2)
 
         h = F.average(h, axis=(2,3))
         h = self.l0(h)
@@ -138,7 +138,7 @@ class dilatedBlock(Chain):
 
 class ResBlock(Chain):
     # def __init__(self, in_channels, out_channels, z_channels, dilate, resSize=8):
-    def __init__(self, in_channels, out_channels, dilation, dilate=8, resSize=8, executor=None):
+    def __init__(self, in_channels, out_channels, dilation, dilate=4, resSize=8, executor=None):
         super(ResBlock, self).__init__()
         with self.init_scope():
             for i in range(dilate):
@@ -168,19 +168,57 @@ class ResBlock(Chain):
         return residual
 
 
+class ResBlock2(Chain):
+    # def __init__(self, in_channels, out_channels, z_channels, dilate, resSize=8):
+    def __init__(self, in_channels, out_channels, dilate, resSize=8, executor=None):
+        super(ResBlock2, self).__init__()
+        with self.init_scope():
+            self.conv0 = L.DilatedConvolution2D(in_channels, out_channels, ksize=(3, 2), dilate=(dilate, 1), pad=(dilate, 0))
+            self.conv1 = L.Convolution2D(out_channels, out_channels, ksize=(1, 1), pad=(0, 0))
+            self.out_channels = out_channels
+            # self.dilate = dilate
+            self.resSize = resSize
+            self.dilate = dilate
+        
+    def __call__(self, x):
+
+        # h = h * F.sigmoid(h)
+        h = F.relu(x)
+        h = self.conv0(h)
+        # h = h * F.sigmoid(h)
+        h = F.relu(h)
+        h = self.conv1(h)
+        a, b, c, d = h.shape
+        residual = h + F.concat((x[:,:self.resSize,:,-d:], xp.zeros((a, b - self.resSize, c, d),dtype=xp.float32)),axis=1)
+        return residual
+
 class Generator(Chain):
     def __init__(self, compressor):
         super(Generator, self).__init__()
         with self.init_scope():
             self.convBlock=compressor
-            self.add_link(f"resBlock0", ResBlock(8, 64, 1))
-            for i in range(1, 3):
-                self.add_link(f"resBlock{i}", ResBlock(64, 64, 2**(i+1)-1))
-            self.l0 = L.Linear(16, 8)
-            self.conv0 = L.Convolution2D(2, 8, (1, 2))
+            # self.add_link(f"resBlock0", ResBlock(8, 64, 1))
+            
+            for i in range(7):
+                self.add_link(f"resBlock{i}", ResBlock2(64, 64, 2**(i+1)-1))
+            self.l0 = L.Linear(128, 64)
+            
+            self.conv0 = L.Convolution2D(2, 64, ksize=(3, 2), pad=(1, 0))
+            # for i in range(1, 8):
+
+            # self.conv1 = L.DilatedConvolution2D(64, 64, ksize=(3, 2), dilate=(0, 1))
+            # self.conv2 = L.DilatedConvolution2D(64, 128, ksize=(3, 2), dilate=(0, 3))
+            # self.conv3 = L.DilatedConvolution2D(128, 128, ksize=(3, 2), dilate=(0, 7))
+            # self.conv4 = L.ConvolutionND(1, 160, 256, 1)
+            # self.conv5 = L.ConvolutionND(1, 256, 256, 1)
+            # self.conv6 = L.ConvolutionND(1, 256, 446*32, 1)
+            # self.conv7 = L.Convolution2D(32, 32, ksize=(3, 1))
+            # self.conv8 = L.Convolution2D(32, 2, ksize=(3, 1))
+
+            
             self.conv1 = L.Convolution2D(64, 64, 1)
             self.conv2 = L.Convolution2D(64, 2, 1)
-            self.l1 =L.Linear(16, 8)
+            # self.l1 =L.Linear(16, 8)
             # self.embedid = L.EmbedID(256, 32)
             # self.conv0
             self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
@@ -191,20 +229,44 @@ class Generator(Chain):
         z = (self.executor.submit(self.convBlock,i),self.executor.submit(self.convBlock,o))
         z = F.concat((z[0].result(), z[1].result()),axis=-1)
         # z = z * F.sigmoid(z)
-        z = self.l0(z)
-        z = F.tile(F.reshape(z,(x.shape[0],8,1,1)),(442, x.shape[3]-1))
+        z = F.relu(self.l0(z))
+        z = F.tile(F.reshape(z,(x.shape[0],64,1,1)),(442, x.shape[3]-1))
+        h = self.conv0(x) + z
+
+        # z = F.tile(F.reshape(z,(x.shape[0],32,1)),(x.shape[3]-12))
+
         # print(self.conv0(x).shape)
         # print(x.shape)
-        h = self.conv0(x) + z
         # h = F.reshape(h, (x.shape[0], 64, 442, -1)) + z
-
-        for i in range(3):
+        # h = self.conv0(x)
+        # h = F.relu(h)
+        # h = self.conv1(h)
+        # h = F.relu(h)
+        # h = self.conv2(h)
+        # h = F.relu(h)
+        # h = self.conv3(h)
+        # h = F.relu(h)
+        # h = F.max(h, axis=2)
+        # h = F.concat((h, z), axis=1)
+        # h = self.conv4(h)
+        # h = F.relu(h)
+        # h = self.conv5(h)
+        # h = F.relu(h)
+        # h = self.conv6(h)
+        # h = F.relu(h)
+        # h = F.reshape(h, (x.shape[0], 32, 446, -1))
+        # h = self.conv7(h)
+        # h = F.relu(h)
+        # h = self.conv8(h)
+        for i in range(7):
+            # print(h.shape)
             h = self[f"resBlock{i}"](h)
         
         # h = F.reshape(h, (x.shape[0], -1, 442))
-
+        h = F.relu(h)
         h = self.conv1(h)
-        h = h * F.sigmoid(h)
+        # h = h * F.sigmoid(h)
+        h = F.relu(h)
         h = self.conv2(h)
         return h
 
@@ -214,9 +276,9 @@ class Discriminator(Chain):
         super(Discriminator, self).__init__()
         with self.init_scope():
             self.convBlock=compressor
-            self.l1=L.Linear(16, 16, initialW=HeNormal())
-            self.l2=L.Linear(16, 2, initialW=HeNormal())
-            # self.l3=L.Linear(16, 16, initialW=HeNormal())
+            self.l1=L.Linear(128, 64, initialW=HeNormal())
+            self.l2=L.Linear(64, 64, initialW=HeNormal())
+            self.l3=L.Linear(64, 2, initialW=HeNormal())
             # self.l4=L.Linear(16, 2, initialW=HeNormal())
             self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
@@ -225,8 +287,8 @@ class Discriminator(Chain):
         h = F.concat((h[0].result(), h[1].result()),axis=-1)
         # h = F.concat((self.convBlock(x),self.convBlock(c)),axis=-1)
         h = F.relu(self.l1(h))
-        # h = F.relu(self.l2(h))
+        h = F.relu(self.l2(h))
         # h = F.relu(self.l3(h))
-        h = self.l2(h)
+        h = self.l3(h)
         return h
 
