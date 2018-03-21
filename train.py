@@ -80,7 +80,6 @@ class Train:
         x = xp.transpose(x, axes=(0,1,3,2))
         # print(x.dtype)
         return x
-    
     def decode(self, x):
         # print(x.shape)
         a, b, c, d = x.shape
