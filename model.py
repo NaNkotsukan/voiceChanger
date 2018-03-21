@@ -90,8 +90,8 @@ class Compressor(Chain):
         h = self["resBlock3"](h)
         h = F.max_pooling_2d(h, 2)
         h = self["resBlock4"](h)
-        h = F.max_pooling_2d(h, 2)
-        h = self["resBlock5"](h)
+        # h = F.max_pooling_2d(h, 2)
+        # h = self["resBlock5"](h)
 
         # h = F.max_pooling_2d(h, 2)
 
@@ -108,7 +108,7 @@ class Compressor(Chain):
         # h = h * F.sigmoid(h)
         # h = F.max_pooling_2d(h, 2)
 
-        h = F.average(h, axis=(2,3))
+        h = F.max(h, axis=(2,3))
         h = self.l0(h)
 
         return h

@@ -20,7 +20,7 @@ class Train:
         self.setLR()
         self.time=time.time()
         self.dataRate = xp.float32(0.8)
-        self.hamming = xp.hamming(442).astype(xp.float32)
+        self.mado = xp.hanning(442).astype(xp.float32)
         # n=10
         # load_npz(f"param/com/com_{n}.npz",self.compressor)
         # load_npz(f"param/gen/gen_{n}.npz",self.generator)
@@ -68,7 +68,7 @@ class Train:
         a, b, c = x.shape
         x = x.reshape(a, 1, c).astype(xp.float32)
         # x = xp.hstack([x[:,:,i:b-440+i:221] for i in range(441)]) * hamming
-        x = xp.concatenate([x[:,:,:-221].reshape(a, -1, 1, 442), x[:,:,221:].reshape(a, -1, 1, 442)], axis=2).reshape(a, -1, 442) * self.hamming
+        x = xp.concatenate([x[:,:,:-221].reshape(a, -1, 1, 442), x[:,:,221:].reshape(a, -1, 1, 442)], axis=2).reshape(a, -1, 442) * self.mado
         # print(x)
 
         x = xp.fft.fft(x, axis=-1)
@@ -91,7 +91,7 @@ class Train:
         # x = x.reshape(x.shape[0], -1, 442)
         x = xp.transpose(xp.fft.ifft(x,axis=1).real, axes=(0, 2, 1))
         # print(x.shape)
-        x /= self.hamming
+        x /= self.mado
         x = x[:,:-1:2].reshape(a, -1)[:,221:] + x[:,1::2].reshape(a, -1)[:,:-221]
         # print(x.shape)
         return x
@@ -118,7 +118,6 @@ class Train:
                         # save_npz(f"param/com/com_{i}.npz",self.compressor)
                         save_npz(f"param/gen/gen_{i}.npz",self.generator)
                         save_npz(f"param/dis/dis_{i}.npz",self.discriminator)
-
                         a,b,c=self.data.test()
                         
                         # a=self.encode(a.reshape(1,1,-1)[:,:,:a.shape[-1]//442*442-221])
@@ -127,7 +126,9 @@ class Train:
                         c=self.encode(c)
                         d=self.generator(a,b,c,test=True).data
                         d=self.decode(d).get()
-                        self.data.save(d, i)
+                        # print(d.shape)
+                        self.data.save(d, f"Garagara_{i}")
+
                         # del d
                         
                     # print(res[-1][0])
@@ -159,7 +160,7 @@ class Train:
         L_gen1 = F.softmax_cross_entropy(F_dis, xp.zeros(batchsize, dtype=np.int32))
         gen_loss=(L_gen0.data, L_gen1.data)
 
-        L_gen = L_gen0 + L_gen1
+        L_gen = L_gen1 + (L_gen0 if L_gen0.data > 0.0001 else 0)
         L_dis0 = F.softmax_cross_entropy(F_dis, xp.ones(batchsize, dtype=np.int32))
         L_dis1 = F.softmax_cross_entropy(T_dis, xp.zeros(batchsize, dtype=np.int32))
         dis_loss = (L_dis0.data.get(), L_dis1.data.get())
@@ -174,8 +175,8 @@ class Train:
         L_dis.backward()
         self.dis_opt.update()
 
-        self.dis_opt.alpha*=0.99983
-        self.gen_opt.alpha*=0.99983
+        self.dis_opt.alpha*=0.9999
+        self.gen_opt.alpha*=0.9999
         return (gen_loss, dis_loss, dis_acc, self.dataRate, (F_dis.data, T_dis.data))
     
     def garagara(self):

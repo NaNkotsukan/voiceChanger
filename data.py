@@ -7,7 +7,7 @@ import gc
 import cupy as xp
 
 class dataset:
-    def __init__(self, dataLoad=False, sampling=22050):
+    def __init__(self, dataLoad=False, sampling=22050, test=None):
         self.sampling=sampling
         if dataLoad:
             dirs = os.listdir("voices/")
@@ -41,14 +41,31 @@ class dataset:
 
             np.savez("D:/voice/data.npz",*self.data)
         else:
-            self.data = tuple(np.load("D:/voice__/data.npz")[y] for y in np.load("D:/voice__/data.npz"))
+            self.data = tuple(np.load("data.npz")[y] for y in np.load("data.npz"))            
             # with open('D:/voice_/data.pickle', mode='rb') as f:
             #     self.data = pickle.load(f)
             with open('D:/voice__/dataLen.pickle', mode='rb') as f:
                 self.dataLen = pickle.load(f)
 
         self.dataNum = len(self.data)
-        self.dataSize = (99671,97903,99671,97903,97903,97903,97903,97903)
+
+        if test:
+            index = np.random.permutation(self.dataNum)
+            N = round(self.dataNum*test)
+            self.data_ = [self.data[i] for i in index[:N]]
+            self.data = [self.data[i] for i in index[N:]]
+            self.dataLen_ = np.array(self.dataLen)[index[:N]]
+            self.dataLen = np.array(self.dataLen)[index[N:]]
+            self.dataNum_ = N
+            self.dataNum = self.dataNum-N
+            # for x in self.dataLen_:
+            # [[print(self.data_[y].shape, x*i) for i in range(20)] for x,y in zip(self.dataLen_//20,index[:N])]
+            self.data_ = [np.vstack([x[y*i:y*i+4607] for i in range(1, 5)]).reshape(4, 1, -1) for x,y in zip(self.data_, self.dataLen_//5)]
+            # print(self.data_)
+                
+
+        # self.dataSize = dataSize
+        # self.dataSelect = dataSelect
 
         g = self.encode(self.read("test/Garagara_.wav"))
         s = self.encode(self.read("test/minase.wav"))
@@ -59,13 +76,16 @@ class dataset:
         self.index=np.hstack(tuple(np.random.permutation(self.dataNum).astype(dtype=np.int8)[:self.dataNum//N*N] for i in range(num))).reshape(self.dataNum//N*num,N).T
         return self.index.shape[1]
 
-    def next(self,batchSize=16):
-        r = tuple(self.dataCall(i,j).reshape(batchSize, 1, j) for i,j in zip(self.index[[0,0,1,1,1,1,1,1],self.nowIndex:self.nowIndex+batchSize],self.dataSize))
+    def next(self,batchSize=16, dataSize = (99671,97903,99671,97903,97903,97903,97903,97903), dataSelect = [0,0,1,1,1,1,1,1]):
+        r = tuple(self.dataCall(i,j).reshape(batchSize, 1, j) for i,j in zip(self.index[dataSelect,self.nowIndex:self.nowIndex+batchSize], dataSize))
         self.nowIndex+=batchSize
         return r
 
     def dataCall(self, t, size):
         return xp.asarray(np.vstack(tuple(self.data[i][j:j+size] for i,j  in zip(t, tuple(np.random.randint(self.dataLen[k]-size) for k in t)))))
+
+    # def t():
+        
 
     # def data(self, t, size):
     #     x=np.random.randint(self.dataLen[t])
