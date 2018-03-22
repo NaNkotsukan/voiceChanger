@@ -60,12 +60,10 @@ class ResBlock(Chain):
         return residual
 
 class Generator(Chain):
-    def __init__(self, compressor):
+    def __init__(self):
         super(Generator, self).__init__()
         with self.init_scope():
-            self.convBlock=compressor
-
-            self.conv0 = L.Convolution2D(1, 64, ksize=(0, 2), pad=(1, 0))
+            self.conv0 = L.Convolution2D(1, 64, ksize=(1, 2))
             for i in range(11):
                 self.add_link(f"resBlock{i}", ResBlock(64, 64, 2**(i+1)))
             # self.l0 = L.Linear(128, 64)
@@ -77,7 +75,12 @@ class Generator(Chain):
             # self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
     def __call__(self, x, test=False):
-        h = self.conv0(x)
+        # print(x.reshape(len(x), 1, 1, -1))
+        # print(x.shape)
+        # print(x.dtype)
+        # print(type(x))
+        
+        h = self.conv0(x.reshape(len(x), 1, 1, -1))
 
         for i in range(11):
             h = self[f"resBlock{i}"](h)
@@ -94,23 +97,24 @@ class Conv(Chain):
     def __init__(self, in_channels, out_channels):
         super(Conv, self).__init__()
         with self.init_scope():
-            self.conv = L.Convolution2D(in_channels, out_channels,  ksize=(1, 4), stride=2, pad=(0, 2))
+            self.conv = L.Convolution2D(in_channels, out_channels,  ksize=(1, 4), stride=(1, 2), pad=(0, 1))
             self.bn = L.BatchNormalization(in_channels)
 
     def __call__(self, x):
+        # print(x.dtype)
         h = self.bn(x)
         h = h * F.sigmoid(h)
         h = F.dropout(h, 0.3)
         h = self.conv(h)
-        return 
+        return h
 
 class Discriminator(Chain):
     def __init__(self):
         super(Discriminator, self).__init__()
         with self.init_scope():
             # self.convBlock=compressor
-            self.conv = L.ConvolutionND(1, 1, 64, ksize=(1, 4), stride=2, pad=(0, 2))
-            for i in range(12):
+            self.conv = L.Convolution2D(1, 64, ksize=(1, 4), stride=2, pad=(0, 1))
+            for i in range(10):
                 self.add_link(f"conv{i}", Conv(64, 64))
             
             self.l1=L.Linear(1024, 512, initialW=HeNormal())
@@ -120,10 +124,12 @@ class Discriminator(Chain):
             # self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
     def __call__(self, x):
-        h = self.conv(x)
+        h = self.conv(x.reshape(len(x), 1, 1, -1))
         for i in range(10):
             h = self[f"conv{i}"](h)
+
         # h = F.concat((self.convBlock(x),self.convBlock(c)),axis=-1)
+        h = F.relu(h)
         h = F.relu(self.l1(h))
         h = F.relu(self.l2(h))
         # h = F.relu(self.l3(h))

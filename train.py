@@ -5,7 +5,7 @@ from chainer import optimizers, optimizer
 from chainer.serializers import save_npz, load_npz
 import numpy as np
 import cupy as xp
-from model import Compressor, Generator, Discriminator
+from model import Generator, Discriminator
 from data import dataset
 import time
 import pickle
@@ -22,19 +22,16 @@ class Train:
         self.dataRate = xp.float32(0.8)
         self.mado = xp.hanning(442).astype(xp.float32)
         # n=10
-        # load_npz(f"param/com/com_{n}.npz",self.compressor)
         # load_npz(f"param/gen/gen_{n}.npz",self.generator)
         # load_npz(f"param/dis/dis_{n}.npz",self.discriminator)
-        self.training(batchsize = 1)
+        self.training(batchsize = 4)
 
 
     def reset(self):
-        self.compressor = None
         self.generator = None
         self.discriminator = None
-        self.compressor = Compressor()
-        self.generator = Generator(self.compressor)
-        self.discriminator = Discriminator(self.compressor)
+        self.generator = Generator()
+        self.discriminator = Discriminator()
         self.generator.to_gpu()
         self.discriminator.to_gpu()
 
@@ -117,16 +114,16 @@ class Train:
                         # save_npz(f"param/com/com_{i}.npz",self.compressor)
                         save_npz(f"param/gen/gen_{i}.npz",self.generator)
                         save_npz(f"param/dis/dis_{i}.npz",self.discriminator)
-                        a,b,c=self.data.test()
+                        a=xp.asarray(self.data.testData[0][:220500].reshape(1,1,1,-1))
                         
                         # a=self.encode(a.reshape(1,1,-1)[:,:,:a.shape[-1]//442*442-221])
-                        a=self.encode(a.reshape(1,1,-1)[:,:,:112047])
-                        b=self.encode(b)
-                        c=self.encode(c)
-                        d=self.generator(a,b,c,test=True).data
-                        d=self.decode(d).get()
+                        # a=self.encode(a.reshape(1,1,-1)[:,:,:112047])
+                        # b=self.encode(b)
+                        # c=self.encode(c)
+                        d=self.generator(a).data.get()
+                        # d=self.decode(d).get()
                         # print(d.shape)
-                        self.data.save(d, f"Garagara_{i}")
+                        self.data.save(d.flatten(), f"Garagara_{i}")
 
                         # del d
                         
@@ -134,16 +131,19 @@ class Train:
                     # print(res[-1][1])
 
     def batch(self, batchsize = 2):
-        A0, a0, B0, b0, b1, b2, b3, b4= self.data.next(batchSize = batchsize)
+        x = self.data.next(batchSize = batchsize,  dataSize=[36863], dataSelect=[0])
+        x=x[0]
+        # t = next(self.test)
+        t = self.data.test(size=2**15)
         _ = lambda x:self.encode(x)
         # _ = lambda x:x/xp.float32(32768)
-        B0_ = _(B0)
-        A_gen = self.generator(_(A0), _(a0), _(b0))
+        # B0_ = _(B0)
+        A_gen = self.generator(x)
         # print(A_gen.shape)
-        B_gen = self.generator(B0_, _(b3), _(b4))
+        B_gen = self.generator(t)
 
-        F_dis = self.discriminator(A_gen, _(b1))
-        T_dis = self.discriminator(_(B0), _(b2))
+        F_dis = self.discriminator(A_gen)
+        T_dis = self.discriminator(t)
 
         dis_acc = (F.argmax(F_dis,axis=1).data.sum(), xp.int32(batchsize) - F.argmax(T_dis,axis=1).data.sum())
         # acc = (dis_acc[0]+dis_acc[1])/8
@@ -154,12 +154,13 @@ class Train:
         # L_gen0 = F.softmax_cross_entropy(B_gen, B0[:,:,receptionSize:].reshape(batchsize,-1))
         # print(B_gen.shape)
         # print(B0_.shape)
-        L_gen0 = F.mean_squared_error(B_gen, B0_[:,:,:,-442:])
+        L_gen0 = F.mean_squared_error(B_gen, t[:,:,:,4095:])
         # L_gen0 = 0
         L_gen1 = F.softmax_cross_entropy(F_dis, xp.zeros(batchsize, dtype=np.int32))
         gen_loss=(L_gen0.data, L_gen1.data)
 
-        L_gen = L_gen1 + (L_gen0 if L_gen0.data > 0.0001 else 0)
+        # L_gen = L_gen1 + (L_gen0 if L_gen0.data > 0.0001 else 0)
+        L_gen = L_gen1 + L_gen0
         L_dis0 = F.softmax_cross_entropy(F_dis, xp.ones(batchsize, dtype=np.int32))
         L_dis1 = F.softmax_cross_entropy(T_dis, xp.zeros(batchsize, dtype=np.int32))
         dis_loss = (L_dis0.data.get(), L_dis1.data.get())

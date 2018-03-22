@@ -62,6 +62,7 @@ class dataset:
             # [[print(self.data_[y].shape, x*i) for i in range(20)] for x,y in zip(self.dataLen_//20,index[:N])]
             self.data_ = [np.vstack([x[y*i:y*i+4607] for i in range(1, 5)]).reshape(4, 1, -1) for x,y in zip(self.data_, self.dataLen_//5)]
             # print(self.data_)
+            # self.batchSize=2
                 
 
         # self.dataSize = dataSize
@@ -69,9 +70,17 @@ class dataset:
 
         g = self.encode(self.read("test/Garagara_.wav"))
         s = self.encode(self.read("test/minase.wav"))
+        self.teacher = self.teacherIndex(4, s.shape[0] - 2**16)
+        
         self.testData = (g,s)
+    
+    def teacherIndex(self, batchSize, dNum):
+        for i in range(10000):
+            sLen = np.random.permutation(dNum)
+            for i in range(dNum//batchSize):
+                yield sLen[i:i+batchSize]
 
-    def reset(self, num=1_000_000, N=2):
+    def reset(self, num=1_000_000, N=1):
         self.nowIndex=0
         self.index=np.hstack(tuple(np.random.permutation(self.dataNum).astype(dtype=np.int8)[:self.dataNum//N*N] for i in range(num))).reshape(self.dataNum//N*num,N).T
         return self.index.shape[1]
@@ -91,8 +100,15 @@ class dataset:
     #     x=np.random.randint(self.dataLen[t])
     #     self.data[x:x+size]
 
+    # def test(self, size = 112047):
+    #     return (xp.asarray(self.testData[0]).reshape(1,1,-1), xp.asarray(self.testData[0][6*self.sampling:6*self.sampling+size]).reshape(1,1,-1), xp.asarray(self.testData[1][9*self.sampling:9*self.sampling+size]).reshape(1,1,-1))
+    
     def test(self, size = 112047):
-        return (xp.asarray(self.testData[0]).reshape(1,1,-1), xp.asarray(self.testData[0][6*self.sampling:6*self.sampling+size]).reshape(1,1,-1), xp.asarray(self.testData[1][9*self.sampling:9*self.sampling+size]).reshape(1,1,-1))
+        # print(next(self.teacher))
+        x = np.vstack([self.testData[1][i:i+size] for i in next(self.teacher)])
+        # print(x)
+        return xp.asarray(x).reshape(len(x), 1, 1, -1)
+
 
     def save(self, sound, name):
         self.write(self.decode(sound), name)
