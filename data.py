@@ -41,7 +41,8 @@ class dataset:
 
             np.savez("D:/voice/data.npz",*self.data)
         else:
-            self.data = tuple(np.load("data.npz")[y] for y in np.load("data.npz"))            
+            self.data = tuple(np.load("data.npz")[y] for y in np.load("data.npz"))
+            self.data = tuple(np.load("data.npz")[y] for y in np.load("data.npz"))
             # with open('D:/voice_/data.pickle', mode='rb') as f:
             #     self.data = pickle.load(f)
             with open('D:/voice__/dataLen.pickle', mode='rb') as f:
@@ -70,7 +71,7 @@ class dataset:
 
         g = self.encode(self.read("test/Garagara_.wav"))
         s = self.encode(self.read("test/minase.wav"))
-        self.teacher = self.teacherIndex(4, s.shape[0] - 2**16)
+        self.teacher = self.teacherIndex(8, s.shape[0] - 2**16)
         
         self.testData = (g,s)
     

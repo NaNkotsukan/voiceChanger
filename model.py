@@ -63,12 +63,12 @@ class Generator(Chain):
     def __init__(self):
         super(Generator, self).__init__()
         with self.init_scope():
-            self.conv0 = L.Convolution2D(1, 64, ksize=(1, 2))
+            self.conv0 = L.Convolution2D(1, 256, ksize=(1, 2))
             for i in range(11):
-                self.add_link(f"resBlock{i}", ResBlock(64, 64, 2**(i+1)))
+                self.add_link(f"resBlock{i}", ResBlock(256, 256, 2**(i+1)))
             # self.l0 = L.Linear(128, 64)
-            self.conv1 = L.Convolution2D(64, 64, 1)
-            self.conv2 = L.Convolution2D(64, 1, 1)
+            self.conv1 = L.Convolution2D(256, 256, 1)
+            self.conv2 = L.Convolution2D(256, 1, 1)
             # self.l1 =L.Linear(16, 8)
             # self.embedid = L.EmbedID(256, 32)
             # self.conv0
@@ -113,19 +113,19 @@ class Discriminator(Chain):
         super(Discriminator, self).__init__()
         with self.init_scope():
             # self.convBlock=compressor
-            self.conv = L.Convolution2D(1, 64, ksize=(1, 4), stride=2, pad=(0, 1))
-            for i in range(10):
-                self.add_link(f"conv{i}", Conv(64, 64))
+            self.conv = L.Convolution2D(1, 32, ksize=(1, 4), stride=2, pad=(0, 1))
+            for i in range(8):
+                self.add_link(f"conv{i}", Conv(32, 32))
             
-            self.l1=L.Linear(1024, 512, initialW=HeNormal())
-            self.l2=L.Linear(512, 512, initialW=HeNormal())
-            self.l3=L.Linear(512, 2, initialW=HeNormal())
+            self.l1=L.Linear(128, 128, initialW=HeNormal())
+            self.l2=L.Linear(128, 128, initialW=HeNormal())
+            self.l3=L.Linear(128, 2, initialW=HeNormal())
             # self.l4=L.Linear(16, 2, initialW=HeNormal())
             # self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
     def __call__(self, x):
         h = self.conv(x.reshape(len(x), 1, 1, -1))
-        for i in range(10):
+        for i in range(8):
             h = self[f"conv{i}"](h)
 
         # h = F.concat((self.convBlock(x),self.convBlock(c)),axis=-1)
