@@ -9,6 +9,7 @@ from model import Generator, Discriminator
 from data import dataset
 import time
 import pickle
+
 import copy
 
 class Train:
@@ -185,3 +186,4 @@ class Train:
 if __name__ == '__main__':
     train = Train()
     train.training(batchsize = 5)
+    
