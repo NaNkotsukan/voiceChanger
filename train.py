@@ -114,7 +114,7 @@ class Train:
                         # save_npz(f"param/com/com_{i}.npz",self.compressor)
                         save_npz(f"param/gen/gen_{i}.npz",self.generator)
                         save_npz(f"param/dis/dis_{i}.npz",self.discriminator)
-                        a=xp.asarray(self.data.testData[0][:110250].reshape(1,1,1,-1))
+                        a=xp.asarray(self.data.testData[0][:88200].reshape(1,1,1,-1))
                         
                         # a=self.encode(a.reshape(1,1,-1)[:,:,:a.shape[-1]//442*442-221])
                         # a=self.encode(a.reshape(1,1,-1)[:,:,:112047])
@@ -143,7 +143,7 @@ class Train:
         B_gen = self.generator(t)
 
         F_dis = self.discriminator(A_gen)
-        T_dis = self.discriminator(t[:,:,:,:-2047])
+        T_dis = self.discriminator(t[:,:,:,:-4095])
 
         dis_acc = (F.argmax(F_dis,axis=1).data.sum(), xp.int32(batchsize) - F.argmax(T_dis,axis=1).data.sum())
         # acc = (dis_acc[0]+dis_acc[1])/8
@@ -154,7 +154,7 @@ class Train:
         # L_gen0 = F.softmax_cross_entropy(B_gen, B0[:,:,receptionSize:].reshape(batchsize,-1))
         # print(B_gen.shape)
         # print(B0_.shape)
-        L_gen0 = F.mean_squared_error(B_gen, t[:,:,:,2047:])
+        L_gen0 = F.mean_squared_error(B_gen, t[:,:,:,4095:])
         # L_gen0 = 0
         L_gen1 = F.softmax_cross_entropy(F_dis, xp.zeros(batchsize, dtype=np.int32))
         gen_loss=(L_gen0.data, L_gen1.data)

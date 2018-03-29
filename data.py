@@ -42,7 +42,7 @@ class dataset:
             np.savez("D:/voice/data.npz",*self.data)
         else:
             self.data = tuple(np.load("data.npz")[y] for y in np.load("data.npz"))
-            self.data = tuple(np.load("data.npz")[y] for y in np.load("data.npz"))
+            # self.data = tuple(np.load("data.npz")[y] for y in np.load("data.npz"))
             # with open('D:/voice_/data.pickle', mode='rb') as f:
             #     self.data = pickle.load(f)
             with open('D:/voice__/dataLen.pickle', mode='rb') as f:
