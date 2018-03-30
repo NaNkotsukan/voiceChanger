@@ -48,6 +48,19 @@ class dataset:
             with open('D:/voice__/dataLen.pickle', mode='rb') as f:
                 self.dataLen = pickle.load(f)
 
+        g = self.encode(self.read("test/Garagara_.wav"))
+        s = self.encode(self.read("test/minase.wav"))
+        self.teacher = self.teacherIndex(8, s.shape[0] - 2**16)
+
+        self.testData = (g,s)
+
+        self.data=list(self.data)
+        # self.data.append(g)
+        self.data.append(s)
+        self.dataLen=list(self.dataLen)
+        # self.dataLen.append(len(g))
+        self.dataLen.append(len(s))
+
         self.dataNum = len(self.data)
 
         if test:
@@ -68,12 +81,6 @@ class dataset:
 
         # self.dataSize = dataSize
         # self.dataSelect = dataSelect
-
-        g = self.encode(self.read("test/Garagara_.wav"))
-        s = self.encode(self.read("test/minase.wav"))
-        self.teacher = self.teacherIndex(8, s.shape[0] - 2**16)
-        
-        self.testData = (g,s)
     
     def teacherIndex(self, batchSize, dNum):
         for i in range(10000):
@@ -87,9 +94,10 @@ class dataset:
         return self.index.shape[1]
 
     def next(self,batchSize=16, dataSize = (99671,97903,99671,97903,97903,97903,97903,97903), dataSelect = [0,0,1,1,1,1,1,1]):
-        r = tuple(self.dataCall(i,j).reshape(batchSize, 1, j) for i,j in zip(self.index[dataSelect,self.nowIndex:self.nowIndex+batchSize], dataSize))
-        self.nowIndex+=batchSize
-        return r
+        index = self.index[dataSelect,self.nowIndex:self.nowIndex+batchSize]
+        r = tuple(self.dataCall(i,j).reshape(batchSize, 1, j) for i,j in zip(index, dataSize))
+        self.nowIndex += batchSize
+        return r, index
 
     def dataCall(self, t, size):
         return xp.asarray(np.vstack(tuple(self.data[i][j:j+size] for i,j  in zip(t, tuple(np.random.randint(self.dataLen[k]-size) for k in t)))))

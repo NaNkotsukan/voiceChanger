@@ -34,6 +34,7 @@ class GAU(Chain):
     
     def __call__(self, x):
         h = F.tanh(self.convT(x)) * F.sigmoid(self.convS(x))
+        # print(h.shape)
         h = self.conv(h)
         return h
 
@@ -64,25 +65,28 @@ class Generator(Chain):
         super(Generator, self).__init__()
         with self.init_scope():
             self.conv0 = L.Convolution2D(1, 256, ksize=(1, 2))
-            for i in range(11):
+            for i in range(10):
                 self.add_link(f"resBlock{i}", ResBlock(256, 256, 2**(i+1)))
             # self.l0 = L.Linear(128, 64)
             self.conv1 = L.Convolution2D(256, 256, 1)
             self.conv2 = L.Convolution2D(256, 1, 1)
+            self.id = L.EmbedID(111, 8, initialW=HeNormal())
             # self.l1 =L.Linear(16, 8)
             # self.embedid = L.EmbedID(256, 32)
             # self.conv0
             # self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
-    def __call__(self, x, test=False):
+    def __call__(self, x, c, test=False):
         # print(x.reshape(len(x), 1, 1, -1))
         # print(x.shape)
         # print(x.dtype)
         # print(type(x))
+        z = F.concat((self.id(c), xp.zeros((x.shape[0], 248), dtype=xp.float32)))
         
         h = self.conv0(x.reshape(len(x), 1, 1, -1))
+        h = h + F.tile(z.reshape(x.shape[0], -1, 1, 1), h.shape[-1])
 
-        for i in range(11):
+        for i in range(10):
             h = self[f"resBlock{i}"](h)
         
         # h = F.reshape(h, (x.shape[0], -1, 442))
@@ -91,6 +95,7 @@ class Generator(Chain):
         # h = h * F.sigmoid(h)
         h = F.relu(h)
         h = self.conv2(h)
+        # print("=-----------------")
         return h
 
 class Conv(Chain):
@@ -113,26 +118,30 @@ class Discriminator(Chain):
         super(Discriminator, self).__init__()
         with self.init_scope():
             # self.convBlock=compressor
-            self.conv = L.Convolution2D(1, 32, ksize=(1, 4), stride=2, pad=(0, 1))
+            self.conv = L.Convolution2D(1, 16, ksize=(1, 4), stride=2, pad=(0, 1))
             for i in range(8):
-                self.add_link(f"conv{i}", Conv(32, 32))
+                self.add_link(f"conv{i}", Conv(16, 16))
             
-            self.l1=L.Linear(128, 128, initialW=HeNormal())
-            self.l2=L.Linear(128, 128, initialW=HeNormal())
-            self.l3=L.Linear(128, 2, initialW=HeNormal())
+            self.l1=L.Linear(32, 32, initialW=HeNormal())
+            self.l2=L.Linear(32, 32, initialW=HeNormal())
+            self.l3=L.Linear(32, 111, initialW=HeNormal())
+            self.l4=L.Linear(32, 2)
             # self.l4=L.Linear(16, 2, initialW=HeNormal())
             # self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
     def __call__(self, x):
+        # print(x.shape)
         h = self.conv(x.reshape(len(x), 1, 1, -1))
         for i in range(8):
             h = self[f"conv{i}"](h)
+            # print(h.shape)
 
         # h = F.concat((self.convBlock(x),self.convBlock(c)),axis=-1)
         h = F.relu(h)
         h = F.relu(self.l1(h))
         h = F.relu(self.l2(h))
         # h = F.relu(self.l3(h))
-        h = self.l3(h)
-        return h
+        tf = self.l4(h)
+        c = self.l3(h)
+        return tf, c
 
