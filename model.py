@@ -70,7 +70,7 @@ class Generator(Chain):
             # self.l0 = L.Linear(128, 64)
             self.conv1 = L.Convolution2D(256, 256, 1)
             self.conv2 = L.Convolution2D(256, 1, 1)
-            self.id = L.EmbedID(111, 8, initialW=HeNormal())
+            self.id = L.EmbedID(108, 8, initialW=HeNormal())
             # self.l1 =L.Linear(16, 8)
             # self.embedid = L.EmbedID(256, 32)
             # self.conv0
@@ -113,35 +113,85 @@ class Conv(Chain):
         h = self.conv(h)
         return h
 
+# class xBlock(Chain):
+#     def __init__(self, in_channels, out_channels):
+#         super(xBlock, self).__init__()
+#         with self.init_scope():
+#             for i in range(8):
+#                 self.add_link(f"dic{i}", L.DilatedConvolution2D(in_channels, out_channels/8 ,ksize=(1, 3), pad=(0, i), dilate=(0, i)))
+#             self.bn = L.BatchNormalization(in_channels)
+#         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=8)
+    
+#     def __call__(self, x):
+#         for i in range(8):
+#             self.executor.submit(self[f'dic{i}'], x)
+        
+
+
+# class Conv2(Chain):
+#     def __init__(self, in_channels, out_channels):
+#         super(Conv2, self).__init__()
+#         with self.init_scope():
+#             L.Inception()   
+#             self.conv0 = L.Convolution2D(in_channels, out_channels, ksize=(1, 8))
+#             self.bn0 = L.BatchNormalization(in_channels)
+#             self.bn1 = L.BatchNormalization(in_channels)
+
+#     def __call__(self, x):
+#         # print(x.dtype)
+#         h = self.bn(x)
+#         h = h * F.sigmoid(h)
+#         h = F.dropout(h, 0.3)
+#         h = self.conv(h)
+#         h = self.bn(x)
+#         h = h * F.sigmoid(h)
+#         h = F.dropout(h, 0.3)
+#         h = self.conv(h)
+#         return h
+
 class Discriminator(Chain):
     def __init__(self):
         super(Discriminator, self).__init__()
         with self.init_scope():
             # self.convBlock=compressor
-            self.conv = L.Convolution2D(1, 16, ksize=(1, 4), stride=2, pad=(0, 1))
+            self.conv = L.Convolution2D(1, 32, ksize=(1, 4), stride=2, pad=(0, 1))
             for i in range(8):
-                self.add_link(f"conv{i}", Conv(16, 16))
+                self.add_link(f"conv{i}", Conv(32, 32))
             
-            self.l1=L.Linear(32, 32, initialW=HeNormal())
-            self.l2=L.Linear(32, 32, initialW=HeNormal())
-            self.l3=L.Linear(32, 111, initialW=HeNormal())
-            self.l4=L.Linear(32, 2)
+            self.add_link(f"conv0_", Conv(32, 256))
+            for i in range(1, 8):
+                self.add_link(f"conv{i}_", Conv(256, 256))
+            self.l1=L.Linear(64, 64, initialW=HeNormal())
+            self.l2=L.Linear(64, 64, initialW=HeNormal())
+            self.l3=L.Linear(64, 2)
+            self.l4=L.Linear(512, 512, initialW=HeNormal())
+            self.l5=L.Linear(512, 256, initialW=HeNormal())
+            self.l6=L.Linear(256, 111, initialW=HeNormal())
             # self.l4=L.Linear(16, 2, initialW=HeNormal())
             # self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
     def __call__(self, x):
         # print(x.shape)
         h = self.conv(x.reshape(len(x), 1, 1, -1))
-        for i in range(8):
-            h = self[f"conv{i}"](h)
-            # print(h.shape)
+        h_ = h
+        # for i in range(8):
+            # h = self[f"conv{i}"](h)
 
-        # h = F.concat((self.convBlock(x),self.convBlock(c)),axis=-1)
-        h = F.relu(h)
-        h = F.relu(self.l1(h))
-        h = F.relu(self.l2(h))
+        for i in range(8):
+            h_ = self[f"conv{i}_"](h_)
+            # # print(h.shape)
+        # # h = F.concat((self.convBlock(x),self.convBlock(c)),axis=-1)
+
+        # h = F.relu(h)
+        # h = F.relu(self.l1(h))
+        # h = F.relu(self.l2(h))
         # h = F.relu(self.l3(h))
-        tf = self.l4(h)
-        c = self.l3(h)
+        # tf = self.l3(h)
+        tf = 0
+
+        h = F.relu(h_)
+        h = F.relu(self.l4(h))
+        h = F.relu(self.l5(h))
+        c = self.l6(h)
         return tf, c
 

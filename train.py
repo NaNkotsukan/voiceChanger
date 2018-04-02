@@ -144,7 +144,7 @@ class Train:
         # B0_ = _(B0)
         A_gen = self.generator(x, c_)
         # print(A_gen.shape)
-        B_gen = self.generator(A_gen, c)
+        B_gen = self.generator(x, c)
 
         F_tf, F_c = self.discriminator(A_gen[:,:,:,5119:])
         T_tf, T_c = self.discriminator(x[:,:,:,2047:-5119])
@@ -159,7 +159,7 @@ class Train:
         # print(B_gen.shape)
         # print(B0_.shape)
         # L_gen0 = 0
-        L_gen0 = F.mean_squared_error(B_gen, x[:,:,:,2047:-2047])
+        L_gen0 = F.mean_squared_error(B_gen, x[:,:,:,1023:-1024])
         L_gen1 = F.softmax_cross_entropy(F_tf, xp.zeros(batchsize, dtype=np.int32))
         L_gen2 = F.softmax_cross_entropy(F_c, c_)
         gen_loss=(L_gen0.data, L_gen1.data)

@@ -10,30 +10,42 @@ class dataset:
     def __init__(self, dataLoad=False, sampling=22050, test=None):
         self.sampling=sampling
         if dataLoad:
-            dirs = os.listdir("voices/")
             self.data = []
             self.dataLen = []
-            for d in dirs:
-                files = os.listdir("voices/" + d)
-                f=[]
-                for x in files:
-                    s = self.read(f"voices/{d}/{x}")
-                    f.append(s)
-                res = np.hstack(f)
-                if res.shape[0] > self.sampling*20:
-                    print(f"{res.shape[0]} {d}")
-                    res = self.encode(res)
-                    self.dataLen.append(res.shape[0])
-                    self.data.append(res)
-            for x in os.listdir("voice/"):
-                s = self.read(f"voice/{x}")
+            # dirs = os.listdir("voices/")
+            # for d in dirs:
+            #     files = os.listdir("voices/" + d)
+            #     f=[]
+            #     for x in files:
+            #         s = self.read(f"voices/{d}/{x}")
+            #         f.append(s)
+            #     res = np.hstack(f)
+            #     if res.shape[0] > self.sampling*20:
+            #         print(f"{res.shape[0]} {d}")
+            #         res = self.encode(res)
+            #         self.dataLen.append(res.shape[0])
+            #         self.data.append(res)
+            for x in os.listdir("v/"):
+                s = self.read(f"v/{x}")
                 if s.shape[0] > self.sampling*20:
                     print(f"{s.shape[0]} {x}")
                     d=self.encode(s)
                     self.data.append(d)
                     self.dataLen.append(d.shape[0])
 
+            g = self.encode(self.read("test/Garagara_.wav"))
+            m = self.encode(self.read("test/minase.wav"))
+            s = self.encode(self.read("test/minase.wav"))
+            self.testData = (g,s)
+
+            self.data.append(s)
+            self.data.append(m)
+            self.dataLen.append(len(s))
+            self.dataLen.append(len(m))
             self.dataLen=tuple(self.dataLen)
+            print(len(self.data))
+            print(len(self.dataLen))
+            
             with open('D:/voice/dataLen.pickle', mode='wb') as f:
                 pickle.dump(self.dataLen,f)
             # with open('D:/voice/data.pickle', mode='wb') as f:
@@ -45,41 +57,43 @@ class dataset:
             # self.data = tuple(np.load("data.npz")[y] for y in np.load("data.npz"))
             # with open('D:/voice_/data.pickle', mode='rb') as f:
             #     self.data = pickle.load(f)
-            with open('D:/voice__/dataLen.pickle', mode='rb') as f:
+            with open('D:/voice/dataLen.pickle', mode='rb') as f:
                 self.dataLen = pickle.load(f)
+
+        # g = self.encode(self.read("test/Garagara_.wav"))
+        # m = self.encode(self.read("test/minase.wav"))
+        # s = self.encode(self.read("test/minase.wav"))
+        # self.teacher = self.teacherIndex(8, s.shape[0] - 2**16)
 
         g = self.encode(self.read("test/Garagara_.wav"))
         s = self.encode(self.read("test/minase.wav"))
-        self.teacher = self.teacherIndex(8, s.shape[0] - 2**16)
-
         self.testData = (g,s)
 
-        self.data=list(self.data)
+        # self.data=list(self.data)
         # self.data.append(g)
-        self.data.append(s)
-        self.dataLen=list(self.dataLen)
+        # self.dataLen=list(self.dataLen)
         # self.dataLen.append(len(g))
-        self.dataLen.append(len(s))
 
         self.dataNum = len(self.data)
 
-        if test:
-            index = np.random.permutation(self.dataNum)
-            N = round(self.dataNum*test)
-            self.data_ = [self.data[i] for i in index[:N]]
-            self.data = [self.data[i] for i in index[N:]]
-            self.dataLen_ = np.array(self.dataLen)[index[:N]]
-            self.dataLen = np.array(self.dataLen)[index[N:]]
-            self.dataNum_ = N
-            self.dataNum = self.dataNum-N
-            # for x in self.dataLen_:
-            # [[print(self.data_[y].shape, x*i) for i in range(20)] for x,y in zip(self.dataLen_//20,index[:N])]
-            self.data_ = [np.vstack([x[y*i:y*i+4607] for i in range(1, 5)]).reshape(4, 1, -1) for x,y in zip(self.data_, self.dataLen_//5)]
-            # print(self.data_)
-            # self.batchSize=2
+        # print(sum(self.dataLen))
+        # if test:
+        #     index = np.random.permutation(self.dataNum)
+        #     N = round(self.dataNum*test)
+        #     self.data_ = [self.data[i] for i in index[:N]]
+        #     self.data = [self.data[i] for i in index[N:]]
+        #     self.dataLen_ = np.array(self.dataLen)[index[:N]]
+        #     self.dataLen = np.array(self.dataLen)[index[N:]]
+        #     self.dataNum_ = N
+        #     self.dataNum = self.dataNum-N
+        #     # for x in self.dataLen_:
+        #     # [[print(self.data_[y].shape, x*i) for i in range(20)] for x,y in zip(self.dataLen_//20,index[:N])]
+        #     self.data_ = [np.vstack([x[y*i:y*i+4607] for i in range(1, 5)]).reshape(4, 1, -1) for x,y in zip(self.data_, self.dataLen_//5)]
+        #     # print(self.data_)
+        #     # self.batchSize=2
                 
 
-        # self.dataSize = dataSize
+        # # self.dataSize = dataSize
         # self.dataSelect = dataSelect
     
     def teacherIndex(self, batchSize, dNum):
@@ -100,6 +114,7 @@ class dataset:
         return r, index
 
     def dataCall(self, t, size):
+        # print([self.data[i][j:j+size].shape for i,j  in zip(t, tuple(np.random.randint(self.dataLen[k]-size) for k in t))])
         return xp.asarray(np.vstack(tuple(self.data[i][j:j+size] for i,j  in zip(t, tuple(np.random.randint(self.dataLen[k]-size) for k in t)))))
 
     # def t():
@@ -126,6 +141,7 @@ class dataset:
         wave_file = wave.open(file_name,"r")
         x = wave_file.readframes(wave_file.getnframes())
         x = np.frombuffer(x, dtype= "int16")
+        print(wave_file.getnchannels(), wave_file.getframerate())
         return x
 
     def write(self, audio, fname):
