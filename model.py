@@ -431,7 +431,7 @@ class Model_(Chain):
             self.conv6_4 = L.Convolution2D(768, 768, ksize=1, stride=1)
             self.conv6_5 = L.Convolution2D(768, 768, ksize=3, stride=1, pad=1)
             self.conv6_6 = L.Convolution2D(768, 768, ksize=3, stride=2)
-            self.conv = L.Convolution2D(, , ksize=3, stride=2)
+            # self.conv = L.Convolution2D(, , ksize=3, stride=2)
             self.l0 = L.Linear(768, 10, initialW=HeNormal())
             for i in range(3):
                 self.add_link(f"resBlockA{i}", Inception_ResNet_A())
@@ -439,7 +439,7 @@ class Model_(Chain):
                 self.add_link(f"resBlockB{i}", Inception_ResNet_B())
             # for i in range(3):
             #     self.add_link(f"resBlockC{i}", Inception_ResNet_B())
-            
+
             # self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
         self.window = xp.hanning(255)
 
