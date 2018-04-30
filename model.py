@@ -294,51 +294,51 @@ class Model(Chain):
 #         h = self.l5(h)
 #         return h
 
-class Model_(Chain):
-    def __init__(self):
-        super(Model_, self).__init__()
-        with self.init_scope():
-            # self.convBlock=compressor
-            self.conv = L.Convolution2D(1, 32, ksize=(1, 4), stride=2, pad=(0, 1))
-            for i in range(8):
-                self.add_link(f"conv{i}", Conv(32, 32))
+# class Model_(Chain):
+#     def __init__(self):
+#         super(Model_, self).__init__()
+#         with self.init_scope():
+#             # self.convBlock=compressor
+#             self.conv = L.Convolution2D(1, 32, ksize=(1, 4), stride=2, pad=(0, 1))
+#             for i in range(8):
+#                 self.add_link(f"conv{i}", Conv(32, 32))
             
-            self.add_link(f"conv0_", Conv(32, 128))
-            for i in range(1, 8):
-                self.add_link(f"conv{i}_", Conv(128, 128))
-            self.l1=L.Linear(64, 64, initialW=HeNormal())
-            self.l2=L.Linear(64, 64, initialW=HeNormal())
-            self.l3=L.Linear(64, 2)
-            self.l4=L.Linear(256, 256, initialW=HeNormal())
-            self.l5=L.Linear(256, 256, initialW=HeNormal())
-            self.l6=L.Linear(256, 111, initialW=HeNormal())
-            # self.l4=L.Linear(16, 2, initialW=HeNormal())
-            # self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+#             self.add_link(f"conv0_", Conv(32, 128))
+#             for i in range(1, 8):
+#                 self.add_link(f"conv{i}_", Conv(128, 128))
+#             self.l1=L.Linear(64, 64, initialW=HeNormal())
+#             self.l2=L.Linear(64, 64, initialW=HeNormal())
+#             self.l3=L.Linear(64, 2)
+#             self.l4=L.Linear(256, 256, initialW=HeNormal())
+#             self.l5=L.Linear(256, 256, initialW=HeNormal())
+#             self.l6=L.Linear(256, 111, initialW=HeNormal())
+#             # self.l4=L.Linear(16, 2, initialW=HeNormal())
+#             # self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
-    def __call__(self, x, test=False):
-        # print(x.shape)
-        h = self.conv(x.reshape(len(x), 1, 1, -1))
-        h_ = h
-        # for i in range(8):
-            # h = self[f"conv{i}"](h)
+#     def __call__(self, x, test=False):
+#         # print(x.shape)
+#         h = self.conv(x.reshape(len(x), 1, 1, -1))
+#         h_ = h
+#         # for i in range(8):
+#             # h = self[f"conv{i}"](h)
 
-        for i in range(8):
-            h_ = self[f"conv{i}_"](h_, test)
-            # # print(h.shape)
-        # # h = F.concat((self.convBlock(x),self.convBlock(c)),axis=-1)
+#         for i in range(8):
+#             h_ = self[f"conv{i}_"](h_, test)
+#             # # print(h.shape)
+#         # # h = F.concat((self.convBlock(x),self.convBlock(c)),axis=-1)
 
-        # h = F.relu(h)
-        # h = F.relu(self.l1(h))
-        # h = F.relu(self.l2(h))
-        # h = F.relu(self.l3(h))
-        # tf = self.l3(h)
-        # tf = 0
+#         # h = F.relu(h)
+#         # h = F.relu(self.l1(h))
+#         # h = F.relu(self.l2(h))
+#         # h = F.relu(self.l3(h))
+#         # tf = self.l3(h)
+#         # tf = 0
 
-        h = F.relu(h_)
-        h = F.relu(self.l4(h))
-        h = F.relu(self.l5(h))
-        c = self.l6(h)
-        return c
+#         h = F.relu(h_)
+#         h = F.relu(self.l4(h))
+#         h = F.relu(self.l5(h))
+#         c = self.l6(h)
+#         return c
 
 class GCN(Chain):
     def __init__(self, in_channels, out_channels, ksize):
@@ -349,50 +349,166 @@ class GCN(Chain):
     def __call__(self, x):
         pass
 
+
+class Inception_ResNet_A(Chain):
+    def __init__(self):
+        super(Inception_ResNet_A, self).__init__()
+        with self.init_scope():
+            self.conv0 = L.Convolution2D(256, 32, 1)
+            self.conv1 = L.Convolution2D(256, 32, 1)
+            self.conv2 = L.Convolution2D(32, 32, 3, pad=1)
+            self.conv3 = L.Convolution2D(256, 32, 1)
+            self.conv4 = L.Convolution2D(32, 48, 3, pad=1)
+            self.conv5 = L.Convolution2D(48, 64, 3, pad=1)
+            self.conv6 = L.Convolution2D(128, 256, 1)
+
+    def __call__(self, x):
+        h0 = self.conv0(x)
+        h1 = self.conv1(x)
+        h1 = F.relu(h1)
+        h1 = self.conv2(h1)
+        h2 = self.conv3(x)
+        h2 = F.relu(h2)
+        h2 = self.conv4(h2)
+        h2 = F.relu(h2)
+        h2 = self.conv5(h2)
+        h = F.concat([h0, h1, h2])
+        h = F.relu(h)
+        h = self.conv6(h)
+        h = h + x
+        h = F.relu(h)
+        return h
+
+
+class Inception_ResNet_B(Chain):
+    def __init__(self):
+        super(Inception_ResNet_B, self).__init__()
+        with self.init_scope():
+            self.conv0 = L.Convolution2D(256, 128, 1)
+            self.conv1 = L.Convolution2D(256, 128, 1)
+            self.conv2 = L.Convolution2D(128, 32, ksize=(1, 7), pad=(0, 3))
+            self.conv3 = L.Convolution2D(128, 128, ksize=(7, 1), pad=(3, 0))
+            self.conv4 = L.Convolution2D(256, 256, 1)
+
+    def __call__(self, x):
+        h0 = self.conv0(x)
+        h1 = self.conv1(x)
+        h1 = F.relu(h1)
+        h1 = self.conv2(h1)
+        h1 = F.relu(h1)
+        h1 = self.conv3(h1)
+        h = F.concat([h0, h1])
+        h = F.relu(h)
+        h = self.conv4(h)
+        h = h + x
+        h = F.relu(h)
+        return h
+
+
 class Model_(Chain):
     def __init__(self):
         super(Model_, self).__init__()
         with self.init_scope():
             # self.convBlock=compressor
-            self.conv = L.Convolution2D(1, 32, ksize=(1, 4), stride=2, pad=(0, 1))
-            for i in range(8):
-                self.add_link(f"conv{i}", Conv(32, 32))
-            self.add_link(f"conv0_", Conv(32, 128))
-            for i in range(1, 8):
-                self.add_link(f"conv{i}_", Conv(128, 128))
-            self.l1=L.Linear(64, 64, initialW=HeNormal())
-            self.l2=L.Linear(64, 64, initialW=HeNormal())
-            self.l3=L.Linear(64, 2)
-            self.l4=L.Linear(256, 256, initialW=HeNormal())
-            self.l5=L.Linear(256, 256, initialW=HeNormal())
-            self.l6=L.Linear(256, 111, initialW=HeNormal())
-            # self.l4=L.Linear(16, 2, initialW=HeNormal())
+            self.conv0 = L.Convolution2D(2, 32, ksize=3, stride=2)
+            self.conv1 = L.Convolution2D(32, 64, ksize=3, stride=1)
+            self.conv2 = L.Convolution2D(64, 64, ksize=3, stride=2)
+            self.conv3_0 = L.Convolution2D(128, 64, ksize=1, stride=1)
+            self.conv3_1 = L.Convolution2D(64, 64, ksize=3, stride=(1, 2))
+            self.conv3_2 = L.Convolution2D(128, 64, ksize=1, stride=1)
+            self.conv3_3 = L.Convolution2D(64, 64, ksize=(1, 7), stride=1, pad=(0, 3))
+            self.conv3_4 = L.Convolution2D(64, 64, ksize=(7, 1), stride=1, pad=(3, 0))
+            self.conv3_5 = L.Convolution2D(64, 64, ksize=3, stride=(1, 2))
+            self.conv4 = L.Convolution2D(128, 128, ksize=3, stride=2)
+            self.conv5_0 = L.Convolution2D(256, 256, ksize=3, stride=2)
+            self.conv5_1 = L.Convolution2D(256, 256, ksize=1, stride=1)
+            self.conv5_2 = L.Convolution2D(256, 256, ksize=3, stride=1, pad=1)
+            self.conv5_3 = L.Convolution2D(256, 256, ksize=3, stride=2)
+            self.conv6_0 = L.Convolution2D(768, 768, ksize=1, stride=1)
+            self.conv6_1 = L.Convolution2D(768, 768, ksize=3, stride=2)
+            self.conv6_2 = L.Convolution2D(768, 768, ksize=1, stride=1)
+            self.conv6_3 = L.Convolution2D(768, 768, ksize=3, stride=2)
+            self.conv6_4 = L.Convolution2D(768, 768, ksize=1, stride=1)
+            self.conv6_5 = L.Convolution2D(768, 768, ksize=3, stride=1, pad=1)
+            self.conv6_6 = L.Convolution2D(768, 768, ksize=3, stride=2)
+            self.conv = L.Convolution2D(, , ksize=3, stride=2)
+            self.l0 = L.Linear(768, 10, initialW=HeNormal())
+            for i in range(3):
+                self.add_link(f"resBlockA{i}", Inception_ResNet_A())
+            for i in range(5):
+                self.add_link(f"resBlockB{i}", Inception_ResNet_B())
+            # for i in range(3):
+            #     self.add_link(f"resBlockC{i}", Inception_ResNet_B())
+            
             # self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+        self.window = xp.hanning(255)
 
     def __call__(self, x, test=False):
         # print(x.shape)
-        h = self.conv(x.reshape(len(x), 1, 1, -1))
-        h_ = h
-        # for i in range(8):
-            # h = self[f"conv{i}"](h)
+        h = stft(x, self.window)
+        h = self.conv0(h)
+        h = F.relu(h)
+        h = self.conv1(h)
+        h = F.relu(h)
 
-        for i in range(8):
-            h_ = self[f"conv{i}_"](h_, test)
-            # # print(h.shape)
-        # # h = F.concat((self.convBlock(x),self.convBlock(c)),axis=-1)
+        h0 = self.conv2(h)
+        h0 = F.relu(h0)
+        h1 = F.max_pooling_2d(h, 3, 2)
+        h = F.concat([h0, h1])
+        
+        h0 = self.conv3_0(h)
+        h0 = F.relu(h1)
+        h0 = self.conv3_1(h1)
+        h1 = self.conv3_2(h)
+        h1 = F.relu(h1)
+        h1 = self.conv3_3(h1)
+        h1 = F.relu(h1)
+        h1 = self.conv3_4(h1)
+        h1 = F.relu(h1)
+        h1 = self.conv3_5(h1)
+        h = F.concat([h0, h1])
+        h = F.relu(h)
 
-        # h = F.relu(h)
-        # h = F.relu(self.l1(h))
-        # h = F.relu(self.l2(h))
-        # h = F.relu(self.l3(h))
-        # tf = self.l3(h)
-        # tf = 0
+        h0 = self.conv4(h)
+        h0 = F.relu(h0)
+        h1 = F.max_pooling_2d(h, 3, 2)
+        h = F.concat([h0, h1])
 
-        h = F.relu(h_)
-        h = F.relu(self.l4(h))
-        h = F.relu(self.l5(h))
-        c = self.l6(h)
-        return c
+        for i in range(3):
+            h = self[f"resBlockA{i}"](h) 
+
+        h0 = F.max_pooling_2d(h, 3, 2)
+        h1 = self.conv5_0(h)
+        h1 = F.relu(h1)
+        h2 = self.conv5_1(h)
+        h2 = F.relu(h2)
+        h2 = self.conv5_2(h2)
+        h2 = F.relu(h2)
+        h2 = self.conv5_3(h2)
+        h2 = F.relu(h2)
+        h = F.concat([h0, h1, h2])
+
+        for i in range(5):
+            h = self[f"resBlockB{i}"](h)
+        
+        h0 = F.max_pooling_2d(h)
+        h1 = self.conv6_0(h)
+        h1 = F.relu(h1)
+        h1 = self.conv6_1(h1)
+        h1 = F.relu(h1)
+        h2 = self.conv6_2(h)
+        h2 = F.relu(h2)
+        h2 = self.conv6_3(h2)
+        h2 = F.relu(h2)
+        h3 = self.conv6_4(h)
+        h3 = F.relu(h3)
+        h3 = self.conv6_5(h3)
+        h3 = F.relu(h3)
+        h3 = self.conv6_6(h3)
+        h3 = F.relu(h3)
+        h = F.concat([h0, h1, h2, h3])      
+
+        return h
 
 def stft(x, window):
     wSize = window.shape[0]
