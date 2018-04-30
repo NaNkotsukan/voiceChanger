@@ -381,14 +381,14 @@ class Inception_ResNet_A(Chain):
 
 
 class Inception_ResNet_B(Chain):
-    def __init__(self):
+    def __init__(self, in_channels, out_channels):
         super(Inception_ResNet_B, self).__init__()
         with self.init_scope():
-            self.conv0 = L.Convolution2D(256, 128, 1)
-            self.conv1 = L.Convolution2D(256, 128, 1)
-            self.conv2 = L.Convolution2D(128, 32, ksize=(1, 7), pad=(0, 3))
+            self.conv0 = L.Convolution2D(in_channels, 128, 1)
+            self.conv1 = L.Convolution2D(in_channels, 128, 1)
+            self.conv2 = L.Convolution2D(128, 128, ksize=(1, 7), pad=(0, 3))
             self.conv3 = L.Convolution2D(128, 128, ksize=(7, 1), pad=(3, 0))
-            self.conv4 = L.Convolution2D(256, 256, 1)
+            self.conv4 = L.Convolution2D(256, out_channels, 1)
 
     def __call__(self, x):
         h0 = self.conv0(x)
@@ -424,24 +424,26 @@ class Model_(Chain):
             self.conv5_1 = L.Convolution2D(256, 256, ksize=1, stride=1)
             self.conv5_2 = L.Convolution2D(256, 256, ksize=3, stride=1, pad=1)
             self.conv5_3 = L.Convolution2D(256, 256, ksize=3, stride=2)
-            self.conv6_0 = L.Convolution2D(768, 768, ksize=1, stride=1)
-            self.conv6_1 = L.Convolution2D(768, 768, ksize=3, stride=2)
-            self.conv6_2 = L.Convolution2D(768, 768, ksize=1, stride=1)
-            self.conv6_3 = L.Convolution2D(768, 768, ksize=3, stride=2)
-            self.conv6_4 = L.Convolution2D(768, 768, ksize=1, stride=1)
-            self.conv6_5 = L.Convolution2D(768, 768, ksize=3, stride=1, pad=1)
-            self.conv6_6 = L.Convolution2D(768, 768, ksize=3, stride=2)
+            self.conv6_0 = L.Convolution2D(768, 256, ksize=1, stride=1)
+            self.conv6_1 = L.Convolution2D(256, 256, ksize=3, stride=2)
+            self.conv6_2 = L.Convolution2D(768, 256, ksize=1, stride=1)
+            self.conv6_3 = L.Convolution2D(256, 256, ksize=3, stride=2)
+            self.conv6_4 = L.Convolution2D(768, 256, ksize=1, stride=1)
+            self.conv6_5 = L.Convolution2D(256, 256, ksize=3, stride=1, pad=1)
+            self.conv6_6 = L.Convolution2D(256, 256, ksize=3, stride=2)
             # self.conv = L.Convolution2D(, , ksize=3, stride=2)
-            self.l0 = L.Linear(768, 10, initialW=HeNormal())
+            self.l0 = L.Linear(1536, 10, initialW=HeNormal())
             for i in range(3):
                 self.add_link(f"resBlockA{i}", Inception_ResNet_A())
+            # self.add_link(f"resBlockB0", Inception_ResNet_B(256*3))
             for i in range(5):
-                self.add_link(f"resBlockB{i}", Inception_ResNet_B())
-            # for i in range(3):
-            #     self.add_link(f"resBlockC{i}", Inception_ResNet_B())
+                self.add_link(f"resBlockB{i}", Inception_ResNet_B(256*3, 256*3))
+            # self.add_link(f"resBlockC0", Inception_ResNet_B(256*3))
+            for i in range(3):
+                self.add_link(f"resBlockC{i}", Inception_ResNet_B(1536, 1536))
 
             # self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
-        self.window = xp.hanning(255)
+        self.window = xp.hanning(235).astype(xp.float32)
 
     def __call__(self, x, test=False):
         # print(x.shape)
@@ -475,7 +477,7 @@ class Model_(Chain):
         h = F.concat([h0, h1])
 
         for i in range(3):
-            h = self[f"resBlockA{i}"](h) 
+            h = self[f"resBlockA{i}"](h)
 
         h0 = F.max_pooling_2d(h, 3, 2)
         h1 = self.conv5_0(h)
@@ -491,7 +493,7 @@ class Model_(Chain):
         for i in range(5):
             h = self[f"resBlockB{i}"](h)
         
-        h0 = F.max_pooling_2d(h)
+        h0 = F.max_pooling_2d(h, 3, 2)
         h1 = self.conv6_0(h)
         h1 = F.relu(h1)
         h1 = self.conv6_1(h1)
@@ -507,18 +509,39 @@ class Model_(Chain):
         h3 = self.conv6_6(h3)
         h3 = F.relu(h3)
         h = F.concat([h0, h1, h2, h3])      
+        for i in range(3):
+            h = self[f"resBlockC{i}"](h)
+        
+        h = F.average(h, axis=(2, 3))
+        h = F.dropout(h, 0.2)
+        h = self.l0(h)
 
         return h
 
 def stft(x, window):
+    # print(x.dtype)
     wSize = window.shape[0]
     xSize = x.shape[-1]
     bSize = x.shape[0]
     x=x.reshape(bSize,1,xSize)
     # h = xp.vstack([x[i:xSize-wSize+i] for i in range(256)]).T
     # h = F.transpose(F.vstack([x[:,i:xSize-wSize+i] for i in range(wSize)]), axes=(0,2,1))
-    h = F.transpose(F.concat([x[:,:,i:xSize-wSize+i] for i in range(wSize)], axis=1), axes=(0,2,1)).reshape(bSize, 1, xSize-wSize+1, wSize)
+    h = F.concat([x[:,:,i:xSize-wSize+i+1] for i in range(wSize)], axis=1)
+    h = F.transpose(h, axes=(0,2,1))
+    h = h.reshape(bSize, 1, xSize-wSize+1, wSize)
+    # print(h.dtype)
+    # print(h.dtype)
     h = h * window
-    h = F.fft((h, xp.zeros(h.shape)))
+    h = F.fft((h, xp.zeros(h.shape, dtype=xp.float32)))
     h = F.concat((h[0], h[1]), axis=1)
+    h = F.transpose(h, axes=(0,1,3,2))
     return h
+
+# def a(x):
+#     return (((((x*2+1)*2+1)*2+1+2)*2+1+2)*2+1+2)*2+1
+# def b(x):
+#     return (((((x*2+1)*2+1)*2+1)*2+1)*2+1+2)*2+1
+def a(x):
+    return ((((x*2+1)*2+1)*2+1+2)*2+1+2)*2+1
+def b(x):
+    return (((((x*2+1)*2+1)*2+1)*2+1)*2+1+2)*2+1

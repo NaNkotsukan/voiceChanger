@@ -19,14 +19,14 @@ class dataset:
             #     for x in files:
             #         s = self.read(f"voices/{d}/{x}")
             #         f.append(s)
-            #     res = np.hstack(f)
+            #    np res = np.hstack(f)
             #     if res.shape[0] > self.sampling*20:
             #         print(f"{res.shape[0]} {d}")
             #         res = self.encode(res)
             #         self.dataLen.append(res.shape[0])
             #         self.data.append(res)
-            for x in os.listdir("v/"):
-                s = self.read(f"v/{x}")
+            for x in os.listdir("v__/"):
+                s = self.read(f"v__/{x}")
                 if s.shape[0] > self.sampling*20:
                     print(f"{s.shape[0]} {x}")
                     d=self.encode(s)
@@ -38,26 +38,28 @@ class dataset:
             s = self.encode(self.read("test/minase.wav"))
             self.testData = (g,s)
 
-            self.data.append(s)
-            self.data.append(m)
-            self.dataLen.append(len(s))
-            self.dataLen.append(len(m))
-            self.dataLen=tuple(self.dataLen)
-            print(len(self.data))
-            print(len(self.dataLen))
+            # self.data.append(s)
+            # self.data.append(m)
+            # self.dataLen.append(len(s))
+            # self.dataLen.append(len(m))
+            # self.dataLen=tuple(self.dataLen)
+            # print(len(self.data))
+            # print(len(self.dataLen))
             
-            with open('D:/voice/dataLen.pickle', mode='wb') as f:
+            with open('D:/voice/dataLen__.pickle', mode='wb') as f:
+                pickle.dump(self.dataLen,f)            
+            with open('dataLen___.pickle', mode='wb') as f:
                 pickle.dump(self.dataLen,f)
             # with open('D:/voice/data.pickle', mode='wb') as f:
             #     pickle.dump(self.data,f)
 
-            np.savez("D:/voice/data.npz",*self.data)
+            np.savez("data_.npz",*self.data)
         else:
-            self.data = tuple(np.load("data.npz")[y] for y in np.load("data.npz"))
+            self.data = tuple(np.load("data_.npz")[y] for y in np.load("data_.npz"))
             # self.data = tuple(np.load("data.npz")[y] for y in np.load("data.npz"))
             # with open('D:/voice_/data.pickle', mode='rb') as f:
             #     self.data = pickle.load(f)
-            with open('D:/voice/dataLen.pickle', mode='rb') as f:
+            with open('dataLen_.pickle', mode='rb') as f:
                 self.dataLen = pickle.load(f)
 
         # g = self.encode(self.read("test/Garagara_.wav"))
@@ -75,6 +77,15 @@ class dataset:
         # self.dataLen.append(len(g))
 
         self.dataNum = len(self.data)
+        # if dataNum!=None:
+        #     self.dataNum = dataNum
+        #     np.argsort(np.array(self.dataLen))[::-1]
+
+
+        # self.dataNum = 10
+        self.testnum=10
+        self.test = (xp.asarray(np.vstack([np.vstack([x[i*3501:i*3501+3501] for i in range(self.testnum)]) for x in self.data]).reshape(-1, 1, 1, 3501)), 
+        np.tile(np.arange(self.dataNum).reshape(self.dataNum,1),self.testnum).flatten())
 
         # print(sum(self.dataLen))
         # if test:
@@ -115,7 +126,7 @@ class dataset:
 
     def dataCall(self, t, size):
         # print([self.data[i][j:j+size].shape for i,j  in zip(t, tuple(np.random.randint(self.dataLen[k]-size) for k in t))])
-        return xp.asarray(np.vstack(tuple(self.data[i][j:j+size] for i,j  in zip(t, tuple(np.random.randint(self.dataLen[k]-size) for k in t)))))
+        return xp.asarray(np.vstack(tuple(self.data[i][j:j+size] for i,j  in zip(t, tuple(np.random.randint(40000, self.dataLen[k]-size) for k in t)))))
 
     # def t():
         
@@ -127,11 +138,14 @@ class dataset:
     # def test(self, size = 112047):
     #     return (xp.asarray(self.testData[0]).reshape(1,1,-1), xp.asarray(self.testData[0][6*self.sampling:6*self.sampling+size]).reshape(1,1,-1), xp.asarray(self.testData[1][9*self.sampling:9*self.sampling+size]).reshape(1,1,-1))
     
-    def test(self, size = 112047):
-        # print(next(self.teacher))
-        x = np.vstack([self.testData[1][i:i+size] for i in next(self.teacher)])
-        # print(x)
-        return xp.asarray(x).reshape(len(x), 1, 1, -1)
+    # def test(self, size = 112047):
+    #     # print(next(self.teacher))
+    #     x = np.vstack([self.testData[1][i:i+size] for i in next(self.teacher)])
+    #     # print(x)
+    #     return xp.asarray(x).reshape(len(x), 1, 1, -1)
+
+    # def test(self):
+    #     [np.vstack([x[i*1024:i*1024+1024] for i in range(10)]) for x in self.data]
 
 
     def save(self, sound, name):
