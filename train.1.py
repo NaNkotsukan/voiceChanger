@@ -16,8 +16,10 @@ class Train:
     def __init__(self):
         self.model = Model_()
         self.model.to_gpu()
-        self.model_opt = optimizers.Adam()
+        self.model_opt = optimizers.Adam(alpha=0.0001)
         self.model_opt.setup(self.model)
+        i = 37000
+        load_npz(f"param/model_/model{i}.npz", self.model)
         # self.model_opt.add_hook(optimizer.WeightDecay(0.0001))
 
         self.data=dataset()
@@ -55,7 +57,7 @@ class Train:
             for i in range(N // batchsize-1):
                 res = self.batch(batchsize = batchsize)
                 if not i%100:
-                    testAcc = (np.concatenate([self.model(self.data.test[0][i*10:i*10+10]).data.get().argmax(-1).flatten() for i in range(10)])==self.data.test[1]).sum()
+                    testAcc = (np.concatenate([self.model(self.data.test[0][i*10:i*10+10], test=True).data.get().argmax(-1).flatten() for i in range(10)])==self.data.test[1]).sum()
                     print(F"{i} time:{int(time.time()-self.time)} D_Loss:{res[0]} D_Acc:{res[1]} testAcc:{testAcc/self.data.dataNum*self.data.testnum}")
                     if not i%1000:
                         save_npz(f"param/model/model{i}.npz",self.model)

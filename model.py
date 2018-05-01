@@ -513,9 +513,8 @@ class Model_(Chain):
             h = self[f"resBlockC{i}"](h)
         
         h = F.average(h, axis=(2, 3))
-        h = F.dropout(h, 0.2)
+        if not test:h = F.dropout(h, 0.4)
         h = self.l0(h)
-
         return h
 
 def stft(x, window):
