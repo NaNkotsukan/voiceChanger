@@ -170,7 +170,7 @@ class dataset:
         return y
 
     def decode(self, y):
-        z=(y*2**16).reshape(-1).astype(np.int16)
+        z=(y*32768).reshape(-1).astype(np.int16)
         # y=(y-128).astype(np.int8)
         # z=((np.sign(y)*255**np.abs(y/128))*128).astype(np.int16)
         return z

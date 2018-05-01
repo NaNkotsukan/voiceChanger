@@ -28,11 +28,12 @@ class GAU(Chain):
             #     self.convT = L.Convolution2D(in_channels, out_channels, ksize=(1, 2), pad=(0, 1))
             #     self.convS = L.Convolution2D(in_channels, out_channels, ksize=(1, 2), pad=(0, 1))
             # else:
-            self.convT = L.DilatedConvolution2D(in_channels, out_channels, ksize=(1, 2), dilate=(0, dilate))
-            self.convS = L.DilatedConvolution2D(in_channels, out_channels, ksize=(1, 2), dilate=(0, dilate))
+            self.convT = L.DilatedConvolution2D(in_channels, out_channels, ksize=(1, 2), dilate=dilate)
+            self.convS = L.DilatedConvolution2D(in_channels, out_channels, ksize=(1, 2), dilate=dilate)
             self.conv = L.Convolution2D(out_channels, out_channels, ksize=1)
     
     def __call__(self, x):
+        h = self.convT(x)
         h = F.tanh(self.convT(x)) * F.sigmoid(self.convS(x))
         # print(h.shape)
         h = self.conv(h)
@@ -65,37 +66,30 @@ class Generator(Chain):
         super(Generator, self).__init__()
         with self.init_scope():
             self.conv0 = L.Convolution2D(1, 256, ksize=(1, 2))
-            for i in range(10):
+            for i in range(9):
                 self.add_link(f"resBlock{i}", ResBlock(256, 256, 2**(i+1)))
             # self.l0 = L.Linear(128, 64)
             self.conv1 = L.Convolution2D(256, 256, 1)
             self.conv2 = L.Convolution2D(256, 1, 1)
-            self.id = L.EmbedID(108, 8, initialW=HeNormal())
+            self.id = L.EmbedID(10, 8, initialW=HeNormal())
             # self.l1 =L.Linear(16, 8)
             # self.embedid = L.EmbedID(256, 32)
             # self.conv0
             # self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
     def __call__(self, x, c, test=False):
-        # print(x.reshape(len(x), 1, 1, -1))
-        # print(x.shape)
-        # print(x.dtype)
-        # print(type(x))
         z = F.concat((self.id(c), xp.zeros((x.shape[0], 248), dtype=xp.float32)))
-        
+
         h = self.conv0(x.reshape(len(x), 1, 1, -1))
         h = h + F.tile(z.reshape(x.shape[0], -1, 1, 1), h.shape[-1])
 
-        for i in range(10):
+        for i in range(9):
             h = self[f"resBlock{i}"](h)
-        
-        # h = F.reshape(h, (x.shape[0], -1, 442))
+
         h = F.relu(h)
         h = self.conv1(h)
-        # h = h * F.sigmoid(h)
         h = F.relu(h)
         h = self.conv2(h)
-        # print("=-----------------")
         return h
 
 class Conv(Chain):
@@ -406,7 +400,7 @@ class Inception_ResNet_B(Chain):
 
 
 class Model_(Chain):
-    def __init__(self):
+    def __init__(self, out_channels):
         super(Model_, self).__init__()
         with self.init_scope():
             # self.convBlock=compressor
@@ -432,7 +426,7 @@ class Model_(Chain):
             self.conv6_5 = L.Convolution2D(256, 256, ksize=3, stride=1, pad=1)
             self.conv6_6 = L.Convolution2D(256, 256, ksize=3, stride=2)
             # self.conv = L.Convolution2D(, , ksize=3, stride=2)
-            self.l0 = L.Linear(1536, 10, initialW=HeNormal())
+            self.l0 = L.Linear(1536, out_channels, initialW=HeNormal())
             for i in range(3):
                 self.add_link(f"resBlockA{i}", Inception_ResNet_A())
             # self.add_link(f"resBlockB0", Inception_ResNet_B(256*3))
