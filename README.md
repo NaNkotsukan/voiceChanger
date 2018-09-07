@@ -1,2 +1,2 @@
 # voiceChanger
-wavenetとStarGANで人の声を変換するモデル？
+wavenetとGAN?で人の声を変換するモデル
